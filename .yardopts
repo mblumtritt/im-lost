@@ -1,0 +1,10 @@
+--readme README.md
+--title 'im-lost'
+--charset utf-8
+--markup markdown
+--tag comment
+--hide-tag comment
+lib/**/*.rb
+-
+README.md
+LICENSE
