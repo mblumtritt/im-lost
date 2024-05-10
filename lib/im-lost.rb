@@ -1,0 +1,341 @@
+# frozen_string_literal: true
+
+module ImLost
+  class << self
+    #
+    # Enables/disables to include code location into traced call information.
+    # This is enabled by default.
+    #
+    # @return [Boolean] whether code location will be included
+    #
+    attr_reader :caller_locations
+
+    def caller_locations=(value)
+      @caller_locations = value ? true : false
+    end
+
+    #
+    # The output device used to write information.
+    # This should be an `IO` device or any other object responding to `#puts`.
+    #
+    # `$stderr` is configured by default.
+    #
+    # @example Write to a file
+    #   ImLost.output = File.new('./trace', 'w')
+    #
+    # @example Write temporary into a memory stream
+    #   require 'stringio'
+    #
+    #   original = ImLost.output
+    #   begin
+    #     ImLost.output = StringIO.new
+    #     # ... collect trace information
+    #     puts(ImLost.output.string) # or whatever
+    #   ensure
+    #     ImLost.output = original
+    #   end
+    #
+    # @return [#puts] the output device
+    #
+    attr_reader :output
+
+    def output=(value)
+      return @output = value if value.respond_to?(:puts)
+      raise(ArgumentError, "invalid output device - #{value.inspect}")
+    end
+
+    #
+    # Enables/disables tracing of method calls.
+    # This is enabled by default.
+    #
+    # @attribute [r] trace_calls
+    # @return [Boolean] whether method calls will be traced
+    #
+    def trace_calls = @trace_calls[0].enabled?
+
+    def trace_calls=(value)
+      if value
+        @trace_calls.each(&:enable) unless trace_calls
+      elsif trace_calls
+        @trace_calls.each(&:disable)
+      end
+    end
+
+    #
+    # Traces execptions raised within a given block.
+    #
+    # @example Trace exception and rescue handling
+    #   ImLost.trace_exceptions do
+    #     File.write('/', 'test')
+    #   rescue SystemCallError
+    #     raise('something went wrong!')
+    #   end
+    #   # output will look like
+    #   #   x Errno::EEXIST: File exists @ rb_sysopen - /
+    #   #   /projects/test.rb:2
+    #   #   ! Errno::EEXIST: File exists @ rb_sysopen - /
+    #   #   /projects/test.rb:3
+    #   #   x RuntimeError: something went wrong!
+    #   #   /projects/test.rb:4
+    #
+    # @param with_locations [Boolean] wheter the locations should be included
+    #   into the exception trace information
+    # @yieldreturn [Object] return result
+    #
+    def trace_exceptions(with_locations: true)
+      return unless block_given?
+      we = @trace_exceptions.enabled?
+      el = @exception_locations
+      @exception_locations = with_locations
+      @trace_exceptions.enable unless we
+      yield
+    ensure
+      @trace_exceptions.disable unless we
+      @exception_locations = el
+    end
+
+    #
+    # Enables/disables tracing of returned valuess of method calls.
+    # This is disabled by default.
+    #
+    # @attribute [r] trace_results
+    # @return [Boolean] whether return values will be traced
+    #
+    def trace_results = @trace_results[0].enabled?
+
+    def trace_results=(value)
+      if value
+        @trace_results.each(&:enable) unless trace_results
+      elsif trace_results
+        @trace_results.each(&:disable)
+      end
+    end
+
+    #
+    # Print the call location conditionally.
+    #
+    # @example simply print location
+    #   ImLost.here
+    #
+    # @example print location when instance variable is empty
+    #   ImLost.here(@name.empty?)
+    #
+    # @example print location when instance variable is nil or empty
+    #   ImLost.here { @name.nil? || @name.empty? }
+    #
+    # @overload here
+    #   Prints the caller location.
+    #   @return [true]
+    #
+    # @overload here(test)
+    #   Prints the caller location when given argument is truthy.
+    #   @param test [Object]
+    #   @return [Object] test
+    #
+    # @overload here
+    #   Prints the caller location when given block returns a truthy result.
+    #   @yield When the block returns a truthy result the location will be print
+    #   @yieldreturn [Object] return result
+    #
+    def here(test = true)
+      return test if !test || (block_given? && !(test = yield))
+      loc = Kernel.caller_locations(1, 1)[0]
+      @output.puts(": #{loc.path}:#{loc.lineno}")
+      test
+    end
+
+    #
+    # Trace objects.
+    #
+    # The given arguments can be any object instance or module or class.
+    #
+    # @example trace method calls of an instance variable for a while
+    #   ImLost.trace(@file)
+    #   # ...
+    #   ImLost.untrace(@file)
+    #
+    # @example temporary trace method calls
+    #   File.open('test.txt', 'w') do |file|
+    #     ImLost.trace(file) do
+    #       file << 'hello '
+    #       file.puts(:world!)
+    #     end
+    #   end
+    #   output will look like
+    #     > IO#<<(?)
+    #       /projects/test.rb:1
+    #     > IO#write(*)
+    #       /projects/test.rb:1
+    #     > IO#puts(*)
+    #       /projects/test.rb:2
+    #     > IO#write(*)
+    #       /projects/test.rb:2
+    #
+    # @overload trace(*args)
+    #   @param args [[Object]] one or more objects to be traced
+    #   @return [[Object]] the traced object(s)
+    #   Start tracing the given objects.
+    #   @see untrace
+    #   @see untrace_all!
+    #
+    #
+    # @overload trace(*args)
+    #   @param args [[Object]] one or more objects to be traced
+    #   @yieldparam args [Object] the traced object(s)
+    #   @yieldreturn [Object] return result
+    #   Traces the given object(s) inside the block only.
+    #   The object(s) will not be traced any longer after the block call.
+    #
+    def trace(*args, &block)
+      return block&.call if args.empty?
+      return args.size == 1 ? _trace(args[0]) : _trace_all(args) unless block
+      args.size == 1 ? _trace_b(args[0], &block) : _trace_all_b(args, &block)
+    end
+
+    #
+    # Stop tracing objects.
+    #
+    # @example trace some objects for some code lines
+    #   traced_vars = ImLost.trace(@file, @client)
+    #   # ...
+    #   ImLost.untrace(*traced_vars)
+    #
+    # @see trace
+    #
+    # @param args [[Object]] one or more objects which should not longer be
+    #   traced
+    # @return [[Object]] the object(s) which are not longer be traced
+    # @return [nil] when none of the objects was traced before
+    #
+    def untrace(*args)
+      ret = args.filter_map { @trace.delete(_1.__id__) ? _1 : nil }
+      args.size == 1 ? ret[0] : ret
+    end
+
+    #
+    # Stop tracing any object.
+    # (When you are really lost and just like to stop tracing of all your
+    #   objects.)
+    #
+    # @see trace
+    #
+    # @return [self] itself
+    #
+    def untrace_all!
+      @trace = {}.compare_by_identity
+      self
+    end
+
+    protected
+
+    def as_sig(prefix, info, args)
+      args = args.join(', ')
+      case info.self
+      when Class, Module
+        "#{prefix} #{info.self}.#{info.method_id}(#{args})"
+      else
+        "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
+      end
+    end
+
+    private
+
+    def _trace(arg)
+      @trace[arg.__id__] = 1 if self != arg && @output != arg
+      arg
+    end
+
+    def _trace_all(args)
+      args.each do |arg|
+        @trace[arg.__id__] = 1 if arg != self && @output != arg
+      end
+      args
+    end
+
+    def _trace_b(arg)
+      @trace[id = arg.__id__] = 1 if self != arg && @output != arg
+      yield(arg)
+    ensure
+      @trace.delete(id) if id
+    end
+
+    def _trace_all_b(args)
+      ids =
+        args.filter_map do |arg|
+          next if self == arg || @output == arg
+          @trace[id = arg.__id__] = 1
+          id
+        end
+      yield(args)
+    ensure
+      ids.each { @trace.delete(_1) }
+    end
+  end
+
+  ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
+  NO_NAME = %i[* ** &].freeze
+  EX_PREFIX = { raise: 'x', rescue: '!' }.freeze
+  private_constant :ARG_SIG, :NO_NAME, :EX_PREFIX
+
+  @trace = {}.compare_by_identity
+  @caller_locations = true
+  @output = $stderr.respond_to?(:puts) ? $stderr : STDERR
+
+  @trace_calls = [
+    TracePoint.new(:c_call) do |tp|
+      next unless @trace.key?(tp.self.__id__)
+      @output.puts(as_sig('>', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
+      @output.puts("  #{tp.path}:#{tp.lineno}") if @caller_locations
+    end,
+    TracePoint.new(:call) do |tp|
+      next unless @trace.key?(tp.self.__id__)
+      ctx = tp.binding
+      @output.puts(
+        as_sig(
+          '>',
+          tp,
+          tp.parameters.map do |kind, name|
+            next name if NO_NAME.include?(name)
+            "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
+          end
+        )
+      )
+      next unless @caller_locations
+      loc = ctx.eval('caller_locations(4,1)')[0]
+      @output.puts("  #{loc.path}:#{loc.lineno}")
+    end
+  ]
+
+  @trace_results = [
+    TracePoint.new(:c_return) do |tp|
+      next unless @trace.key?(tp.self.__id__)
+      @output.puts(as_sig('<', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
+      @output.puts("  = #{tp.return_value.inspect}")
+    end,
+    TracePoint.new(:return) do |tp|
+      next unless @trace.key?(tp.self.__id__)
+      ctx = tp.binding
+      @output.puts(
+        as_sig(
+          '<',
+          tp,
+          tp.parameters.map do |kind, name|
+            next name if %i[* ** &].include?(name)
+            "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
+          end
+        )
+      )
+      @output.puts("  = #{tp.return_value.inspect}")
+    end
+  ]
+
+  supported = RUBY_VERSION >= '3.3.0' ? %i[raise rescue] : %i[raise]
+  @trace_exceptions =
+    TracePoint.new(*supported) do |tp|
+      ex = tp.raised_exception.inspect
+      @output.puts("#{EX_PREFIX[tp.event]} #{ex[0] == '#' ? ex[2..-2] : ex}")
+      @output.puts("  #{tp.path}:#{tp.lineno}") if @exception_locations
+    end
+
+  self.trace_calls = true
+end
