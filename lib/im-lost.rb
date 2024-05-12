@@ -1,5 +1,14 @@
 # frozen_string_literal: true
 
+# If you have overlooked something again and don't really understand what your
+# code is doing. If you have to maintain this application but can't really find
+# your way around and certainly can't track down that stupid error. If you feel
+# lost in all that code, here's the gem to help you out!
+#
+# ImLost helps you by analyzing function calls of objects, informing you about
+# exceptions and logging your way through your code. In short, ImLost is your
+# debugging helper!
+#
 module ImLost
   class << self
     #
@@ -227,17 +236,17 @@ module ImLost
     end
 
     #
-    # Print internal variables.
-    #
-    # @overload vars(object)
-    #   Print instance variables of given object.
-    #   @param object [Object] which instance variables should be print
-    #   @return [Object] the given object
+    # Inspect internal variables.
     #
     # @overload vars(binding)
-    #   Print local variables of given Binding.
+    #   Inspect local variables of given Binding.
     #   @param binding [Binding] which local variables should be print
     #   @return [self] itself
+    #
+    # @overload vars(object)
+    #   Inspect instance variables of given object.
+    #   @param object [Object] which instance variables should be print
+    #   @return [Object] the given object
     #
     def vars(object)
       traced = @trace.delete(object.__id__)
