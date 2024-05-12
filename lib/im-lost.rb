@@ -1,5 +1,14 @@
 # frozen_string_literal: true
 
+# If you have overlooked something again and don't really understand what your
+# code is doing. If you have to maintain this application but can't really find
+# your way around and certainly can't track down that stupid error. If you feel
+# lost in all that code, here's the gem to help you out!
+#
+# ImLost helps you by analyzing function calls of objects, informing you about
+# exceptions and logging your way through your code. In short, ImLost is your
+# debugging helper!
+#
 module ImLost
   class << self
     #
@@ -226,6 +235,28 @@ module ImLost
       self
     end
 
+    #
+    # Inspect internal variables.
+    #
+    # @overload vars(binding)
+    #   Inspect local variables of given Binding.
+    #   @param binding [Binding] which local variables should be print
+    #   @return [self] itself
+    #
+    # @overload vars(object)
+    #   Inspect instance variables of given object.
+    #   @param object [Object] which instance variables should be print
+    #   @return [Object] the given object
+    #
+    def vars(object)
+      traced = @trace.delete(object.__id__)
+      return _local_vars(object) if object.is_a?(Binding)
+      return unless object.respond_to?(:instance_variables)
+      _vars(object, Kernel.caller_locations(1, 1)[0])
+    ensure
+      @trace[traced] = 1 if traced
+    end
+
     protected
 
     def as_sig(prefix, info, args)
@@ -270,6 +301,34 @@ module ImLost
     ensure
       ids.each { @trace.delete(_1) }
     end
+
+    def _vars(obj, location)
+      @output.puts("= #{location.path}:#{location.lineno}")
+      vars = obj.instance_variables
+      if vars.empty?
+        @output.puts('  <no instance variables defined>')
+      else
+        @output.puts('  instance variables:')
+        vars.sort!.each do |name|
+          @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
+        end
+      end
+      obj
+    end
+
+    def _local_vars(binding)
+      @output.puts("= #{binding.source_location.join(':')}")
+      vars = binding.local_variables
+      if vars.empty?
+        @output.puts('  <no local variables>')
+      else
+        @output.puts('  local variables:')
+        vars.sort!.each do |name|
+          @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
+        end
+      end
+      self
+    end
   end
 
   ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
@@ -283,12 +342,12 @@ module ImLost
 
   @trace_calls = [
     TracePoint.new(:c_call) do |tp|
-      next unless @trace.key?(tp.self.__id__)
+      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
       @output.puts(as_sig('>', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
       @output.puts("  #{tp.path}:#{tp.lineno}") if @caller_locations
     end,
     TracePoint.new(:call) do |tp|
-      next unless @trace.key?(tp.self.__id__)
+      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
       ctx = tp.binding
       @output.puts(
         as_sig(
@@ -308,12 +367,12 @@ module ImLost
 
   @trace_results = [
     TracePoint.new(:c_return) do |tp|
-      next unless @trace.key?(tp.self.__id__)
+      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
       @output.puts(as_sig('<', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
       @output.puts("  = #{tp.return_value.inspect}")
     end,
     TracePoint.new(:return) do |tp|
-      next unless @trace.key?(tp.self.__id__)
+      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
       ctx = tp.binding
       @output.puts(
         as_sig(
