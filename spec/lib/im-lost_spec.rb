@@ -310,7 +310,7 @@ RSpec.describe ImLost do
 
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 6}
+            #{__FILE__}:#{__LINE__ - 7}
         OUTPUT
       end
 
@@ -343,7 +343,7 @@ RSpec.describe ImLost do
 
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 15}
+            #{__FILE__}:#{__LINE__ - 16}
           x ArgumentError: not the answer - 21
         OUTPUT
       end
