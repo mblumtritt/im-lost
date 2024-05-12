@@ -20,14 +20,14 @@ File.open('test.txt', 'w') do |file|
   end
 end
 # output will look like
-#   > IO#<<(?)
-#     /projects/test.rb:1
-#   > IO#write(*)
-#     /projects/test.rb:1
-#   > IO#puts(*)
-#     /projects/test.rb:2
-#   > IO#write(*)
-#     /projects/test.rb:2
+#  > IO#<<(?)
+#    /projects/test.rb:1
+#  > IO#write(*)
+#    /projects/test.rb:1
+#  > IO#puts(*)
+#    /projects/test.rb:2
+#  > IO#write(*)
+#    /projects/test.rb:2
 ```
 
 When you need to know if exceptions are raised and handled you can use `ImLost.trace_exceptions`:
@@ -39,12 +39,12 @@ rescue SystemCallError
   raise('something went wrong!')
 end
 # output will look like
-#   x Errno::EEXIST: File exists @ rb_sysopen - /
-#   /projects/test.rb:2
-#   ! Errno::EEXIST: File exists @ rb_sysopen - /
-#   /projects/test.rb:3
-#   x RuntimeError: something went wrong!
-#   /projects/test.rb:4
+#  x Errno::EEXIST: File exists @ rb_sysopen - /
+#    /projects/test.rb:2
+#  ! Errno::EEXIST: File exists @ rb_sysopen - /
+#    /projects/test.rb:3
+#  x RuntimeError: something went wrong!
+#    /projects/test.rb:4
 ```
 
 When you like to know if and when a code point is reached, `ImLost.here` will help:
