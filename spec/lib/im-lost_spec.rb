@@ -1,14 +1,24 @@
 # frozen_string_literal: true
 
 class TestSample
-  def foo = :foo
-  def bar = :bar
-  def add(arg0, arg1) = arg0 + arg1
-  def add_kw(arg0:, arg1:) = arg0 + arg1
+  def initialize
+    @state = :created
+  end
+
+  def add(arg0, arg1)
+    @result = arg0 + arg1
+  end
+
+  def add_kw(arg0:, arg1:)
+    @result = arg0 + arg1
+  end
+
   def add_block(arg0, &block) = add(arg0, block&.call || 42)
   def map(*args) = args.map(&:to_s)
   def insp(**kw_args) = kw_args.inspect
   def fwd(...) = add(...)
+  def foo = :foo
+  def bar = :bar
 end
 
 RSpec.describe ImLost do
@@ -39,22 +49,26 @@ RSpec.describe ImLost do
     it 'traces method calls' do
       sample.foo
       sample.bar
+
       expect(output).to eq "> TestSample#foo()\n> TestSample#bar()\n"
     end
 
     it 'includes arguments in call signatures' do
       sample.add(21, 21)
+
       expect(output).to eq "> TestSample#add(21, 21)\n"
     end
 
     it 'includes keyword arguments in call signatures' do
       sample.add_kw(arg0: 21, arg1: 21)
+
       expect(output).to eq "> TestSample#add_kw(21, 21)\n"
     end
 
     it 'includes block arguments in call signatures' do
       block = proc { 42 }
       sample.add_block(21, &block)
+
       expect(output).to eq <<~OUTPUT
         > TestSample#add_block(21, &#{block.inspect})
         > TestSample#add(21, 42)
@@ -63,27 +77,32 @@ RSpec.describe ImLost do
 
     it 'includes splat arguments' do
       sample.map(1, 2, 3, 4)
+
       expect(output).to eq "> TestSample#map(*[1, 2, 3, 4])\n"
     end
 
     it 'includes empty splat arguments' do
       sample.map
+
       expect(output).to eq "> TestSample#map(*[])\n"
     end
 
     it 'includes keyword splat arguments' do
       sample.insp(a: 1, b: 2)
+
       expect(output).to eq "> TestSample#insp(**{:a=>1, :b=>2})\n"
     end
 
     it 'includes empty keyword splat arguments' do
       sample.insp
+
       expect(output).to eq "> TestSample#insp(**{})\n"
     end
 
     if RUBY_VERSION < '3.1.0'
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
+
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, &)
           > TestSample#add(40, 2)
@@ -92,6 +111,7 @@ RSpec.describe ImLost do
     else
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
+
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, **, &)
           > TestSample#add(40, 2)
@@ -104,15 +124,17 @@ RSpec.describe ImLost do
       example.foo
       ImLost.trace(example) { |obj| obj.add(20, 22) }
       example.foo
+
       expect(output).to eq "> TestSample#add(20, 22)\n"
     end
 
     it 'can include caller locations' do
       ImLost.caller_locations = true
       sample.foo
+
       expect(output).to eq <<~OUTPUT
         > TestSample#foo()
-          #{__FILE__}:#{__LINE__ - 3}
+          #{__FILE__}:#{__LINE__ - 4}
       OUTPUT
     end
   end
@@ -128,6 +150,7 @@ RSpec.describe ImLost do
     it 'traces method call results' do
       sample.foo
       sample.bar
+
       expect(output).to eq <<~OUTPUT
         < TestSample#foo()
           = :foo
@@ -138,12 +161,14 @@ RSpec.describe ImLost do
 
     it 'includes arguments in call signatures' do
       sample.add(21, 21)
+
       expect(output).to eq "< TestSample#add(21, 21)\n  = 42\n"
     end
 
     it 'includes block arguments in call signatures' do
       block = proc { 42 }
       sample.add_block(21, &block)
+
       expect(output).to eq <<~OUTPUT
         < TestSample#add(21, 42)
           = 63
@@ -154,6 +179,7 @@ RSpec.describe ImLost do
 
     it 'includes splat arguments' do
       sample.map(1, 2, 3, 4)
+
       expect(output).to eq <<~OUTPUT
         < TestSample#map(*[1, 2, 3, 4])
           = ["1", "2", "3", "4"]
@@ -167,6 +193,7 @@ RSpec.describe ImLost do
 
     it 'includes keyword splat arguments' do
       sample.insp(a: 1, b: 2)
+
       expect(output).to eq <<~OUTPUT
         < TestSample#insp(**{:a=>1, :b=>2})
           = "{:a=>1, :b=>2}"
@@ -175,12 +202,14 @@ RSpec.describe ImLost do
 
     it 'includes empty keyword splat arguments' do
       sample.insp
+
       expect(output).to eq "< TestSample#insp(**{})\n  = \"{}\"\n"
     end
 
     if RUBY_VERSION < '3.1.0'
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
+
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
@@ -191,6 +220,7 @@ RSpec.describe ImLost do
     else
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
+
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
@@ -205,6 +235,7 @@ RSpec.describe ImLost do
       example.foo
       ImLost.trace(example) { |obj| obj.add(20, 22) }
       example.foo
+
       expect(output).to eq "< TestSample#add(20, 22)\n  = 42\n"
     end
   end
@@ -217,11 +248,12 @@ RSpec.describe ImLost do
         rescue ArgumentError
           # nop
         end
+
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 6}
-          ! ArgumentError: not the answer - 21
             #{__FILE__}:#{__LINE__ - 7}
+          ! ArgumentError: not the answer - 21
+            #{__FILE__}:#{__LINE__ - 8}
         OUTPUT
       end
 
@@ -231,6 +263,7 @@ RSpec.describe ImLost do
         rescue ArgumentError
           # nop
         end
+
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
           ! ArgumentError: not the answer - 21
@@ -253,11 +286,12 @@ RSpec.describe ImLost do
         rescue NotImplementedError
           # nop
         end
+
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 15}
-          ! ArgumentError: not the answer - 42
             #{__FILE__}:#{__LINE__ - 16}
+          ! ArgumentError: not the answer - 42
+            #{__FILE__}:#{__LINE__ - 17}
           x ArgumentError: not the answer - 21
           ! ArgumentError: not the answer - 21
         OUTPUT
@@ -273,6 +307,7 @@ RSpec.describe ImLost do
         rescue ArgumentError
           # nop
         end
+
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
             #{__FILE__}:#{__LINE__ - 6}
@@ -285,6 +320,7 @@ RSpec.describe ImLost do
         rescue ArgumentError
           # nop
         end
+
         expect(output).to eq "x ArgumentError: not the answer - 21\n"
       end
 
@@ -304,6 +340,7 @@ RSpec.describe ImLost do
         rescue NotImplementedError
           # nop
         end
+
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
             #{__FILE__}:#{__LINE__ - 15}
@@ -316,13 +353,15 @@ RSpec.describe ImLost do
   context 'trace locations' do
     it 'writes call location' do
       ImLost.here
-      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 1}\n"
+
+      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 2}\n"
     end
 
     it 'writes only when given condition is truethy' do
       ImLost.here(1 < 2)
       ImLost.here(1 > 2)
-      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 2}\n"
+
+      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 3}\n"
     end
 
     it 'returns given argument' do
@@ -333,12 +372,51 @@ RSpec.describe ImLost do
     it 'writes only when given block result is truethy' do
       ImLost.here { 1 < 2 }
       ImLost.here { 1 > 2 }
-      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 2}\n"
+
+      expect(output).to eq ": #{__FILE__}:#{__LINE__ - 3}\n"
     end
 
     it 'returns block result' do
       expect(ImLost.here { :foo }).to be :foo
       expect(output).to eq ": #{__FILE__}:#{__LINE__ - 1}\n"
+    end
+  end
+
+  context 'dump vars' do
+    it 'prints instance variables' do
+      sample.add(22, 20)
+      ImLost.vars(sample)
+
+      expect(output).to eq <<~OUTPUT
+        = #{__FILE__}:#{__LINE__ - 3}
+          instance variables:
+          @result: 42
+          @state: :created
+      OUTPUT
+    end
+
+    it 'returns given object' do
+      expect(ImLost.vars(sample)).to be sample
+    end
+
+    context 'when a Binding is given' do
+      it 'prints local variables' do
+        test = :test
+        sample = test.to_s
+        test = sample
+        ImLost.vars(binding)
+
+        expect(output).to eq <<~OUTPUT
+          = #{__FILE__}:#{__LINE__ - 3}
+            local variables:
+            sample: "test"
+            test: "test"
+        OUTPUT
+      end
+
+      it 'returns ImLost' do
+        expect(ImLost.vars(binding)).to be ImLost
+      end
     end
   end
 end
