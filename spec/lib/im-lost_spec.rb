@@ -81,12 +81,22 @@ RSpec.describe ImLost do
       expect(output).to eq "> TestSample#insp(**{})\n"
     end
 
-    it 'handles argument forwarding' do
-      sample.fwd(40, 2)
-      expect(output).to eq <<~OUTPUT
-        > TestSample#fwd(*, **, &)
-        > TestSample#add(40, 2)
-      OUTPUT
+    if RUBY_VERSION < '3.1.0'
+      it 'handles argument forwarding' do
+        sample.fwd(40, 2)
+        expect(output).to eq <<~OUTPUT
+          > TestSample#fwd(*, &)
+          > TestSample#add(40, 2)
+        OUTPUT
+      end
+    else
+      it 'handles argument forwarding' do
+        sample.fwd(40, 2)
+        expect(output).to eq <<~OUTPUT
+          > TestSample#fwd(*, **, &)
+          > TestSample#add(40, 2)
+        OUTPUT
+      end
     end
 
     it 'can trace an object in a block only' do
@@ -168,14 +178,26 @@ RSpec.describe ImLost do
       expect(output).to eq "< TestSample#insp(**{})\n  = \"{}\"\n"
     end
 
-    it 'handles argument forwarding' do
-      sample.fwd(40, 2)
-      expect(output).to eq <<~OUTPUT
-        < TestSample#add(40, 2)
-          = 42
-        < TestSample#fwd(*, **, &)
-          = 42
-      OUTPUT
+    if RUBY_VERSION < '3.1.0'
+      it 'handles argument forwarding' do
+        sample.fwd(40, 2)
+        expect(output).to eq <<~OUTPUT
+          < TestSample#add(40, 2)
+            = 42
+          < TestSample#fwd(*, &)
+            = 42
+        OUTPUT
+      end
+    else
+      it 'handles argument forwarding' do
+        sample.fwd(40, 2)
+        expect(output).to eq <<~OUTPUT
+          < TestSample#add(40, 2)
+            = 42
+          < TestSample#fwd(*, **, &)
+            = 42
+        OUTPUT
+      end
     end
 
     it 'can trace an object`s call results in a block only' do
