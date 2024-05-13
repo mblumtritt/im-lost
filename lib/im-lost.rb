@@ -254,7 +254,7 @@ module ImLost
       return unless object.respond_to?(:instance_variables)
       _vars(object, Kernel.caller_locations(1, 1)[0])
     ensure
-      @trace[traced] = 1 if traced
+      @trace[traced] = traced if traced
     end
 
     protected
@@ -272,30 +272,35 @@ module ImLost
     private
 
     def _trace(arg)
-      @trace[arg.__id__] = 1 if self != arg && @output != arg
+      id = arg.__id__
+      @trace[id] = id if __id__ != id && @output.__id__ != id
       arg
     end
 
     def _trace_all(args)
       args.each do |arg|
-        @trace[arg.__id__] = 1 if arg != self && @output != arg
+        arg = arg.__id__
+        @trace[arg] = arg if __id__ != arg && @output.__id__ != arg
       end
       args
     end
 
     def _trace_b(arg)
-      @trace[id = arg.__id__] = 1 if self != arg && @output != arg
-      yield(arg)
-    ensure
-      @trace.delete(id) if id
+      id = arg.__id__
+      return yield(arg) if __id__ == id || @output.__id__ == id
+      begin
+        @trace[id] = id
+        yield(arg)
+      ensure
+        @trace.delete(id) if id
+      end
     end
 
     def _trace_all_b(args)
       ids =
         args.filter_map do |arg|
-          next if self == arg || @output == arg
-          @trace[id = arg.__id__] = 1
-          id
+          arg = arg.__id__
+          @trace[arg] = arg if __id__ != arg && @output.__id__ != arg
         end
       yield(args)
     ensure
@@ -332,9 +337,8 @@ module ImLost
   end
 
   ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
-  NO_NAME = %i[* ** &].freeze
-  EX_PREFIX = { raise: 'x', rescue: '!' }.freeze
-  private_constant :ARG_SIG, :NO_NAME, :EX_PREFIX
+  NO_NAME = { :* => 1, :** => 1, :& => 1 }.compare_by_identity.freeze
+  private_constant :ARG_SIG, :NO_NAME
 
   @trace = {}.compare_by_identity
   @caller_locations = true
@@ -354,7 +358,7 @@ module ImLost
           '>',
           tp,
           tp.parameters.map do |kind, name|
-            next name if NO_NAME.include?(name)
+            next name if NO_NAME.key?(name)
             "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
           end
         )
@@ -392,7 +396,9 @@ module ImLost
   @trace_exceptions =
     TracePoint.new(*supported) do |tp|
       ex = tp.raised_exception.inspect
-      @output.puts("#{EX_PREFIX[tp.event]} #{ex[0] == '#' ? ex[2..-2] : ex}")
+      @output.puts(
+        "#{tp.event == :raise ? 'x' : '!'} #{ex[0] == '#' ? ex[2..-2] : ex}"
+      )
       @output.puts("  #{tp.path}:#{tp.lineno}") if @exception_locations
     end
 
