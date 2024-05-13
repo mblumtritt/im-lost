@@ -154,6 +154,29 @@ module ImLost
     end
 
     #
+    # Print runtime of a given block.
+    #
+    # @param title [#to_s] optional title for output
+    # @yield
+    # @yieldreturn [Object] return result
+    #
+    def time(title = nil)
+      raise(ArgumentError, 'no block given') unless block_given?
+      @output.puts(
+        if title
+          "T #{title}:"
+        else
+          loc = Kernel.caller_locations(1, 1)[0]
+          "T #{loc.path}:#{loc.lineno}"
+        end
+      )
+      tm = now
+      ret = yield
+      @output.puts("  #{now - tm} sec.")
+      ret
+    end
+
+    #
     # Trace objects.
     #
     # The given arguments can be any object instance or module or class.
@@ -257,7 +280,7 @@ module ImLost
       @trace[traced] = traced if traced
     end
 
-    protected
+    private
 
     def as_sig(prefix, info, args)
       args = args.join(', ')
@@ -269,7 +292,11 @@ module ImLost
       end
     end
 
-    private
+    if defined?(Process::CLOCK_MONOTONIC)
+      def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    else
+      def now = ::Time.now
+    end
 
     def _trace(arg)
       id = arg.__id__
