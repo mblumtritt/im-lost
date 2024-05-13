@@ -54,6 +54,12 @@ module ImLost
     end
 
     #
+    # @return [TimerStore] the timer store used to estimate the runtime of
+    #   your code
+    #
+    attr_reader :timer
+
+    #
     # Enables/disables tracing of method calls.
     # This is enabled by default.
     #
@@ -257,7 +263,7 @@ module ImLost
       @trace[traced] = traced if traced
     end
 
-    protected
+    private
 
     def as_sig(prefix, info, args)
       args = args.join(', ')
@@ -268,8 +274,6 @@ module ImLost
         "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
       end
     end
-
-    private
 
     def _trace(arg)
       id = arg.__id__
@@ -336,6 +340,112 @@ module ImLost
     end
   end
 
+  #
+  # A store to create and register timers you can use to estimate the runtime of
+  # some code.
+  #
+  # All timers are identified by an unique ID or a name.
+  #
+  # @example Use a named timer
+  #   ImLost.timer.create('my_test')
+  #
+  #   # ...your code here...
+  #
+  #   ImLost.timer['my_test']
+  #   # => prints the timer name, this location and runtime so far
+  #
+  #   # ...more code here...
+  #
+  #   ImLost.timer['my_test']
+  #   # => prints the timer name, this location and runtime since the timer was created
+  #
+  #   ImLost.timer.delete('my_test')
+  #   # the timer with name 'my_test' is not longer valid now
+  #
+  #
+  # @example Use an anonymous timer (identified by ID)
+  #   tmr = ImLost.timer.create
+  #
+  #   # ...your code here...
+  #
+  #   ImLost.timer[tmr]
+  #   # => prints the timer ID, this location and runtime so far
+  #
+  #   # ...more code here...
+  #
+  #   ImLost.timer[tmr]
+  #   # => prints the timer ID, this location and runtime since the timer was created
+  #
+  #   ImLost.timer.delete(tmr)
+  #   # the timer with the ID `tmr` is not longer valid now
+  #
+  # @see ImLost.timer
+  #
+  class TimerStore
+    if defined?(Process::CLOCK_MONOTONIC)
+      # @return [Float] current time
+      def self.now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    else
+      # @return [Float] current time
+      def self.now = ::Time.now
+    end
+
+    #
+    # Create and register a new named or anonymous timer.
+    #
+    # @param name [#to_s] optional timer name
+    # @return [Integer] timer ID
+    #
+    def create(name = nil)
+      timer = []
+      @ll[id = timer.__id__] = timer
+      name ? @ll[name = name.to_s] = timer : name = id
+      @cb[name, Kernel.caller_locations(1, 1)[0]]
+      timer << name << self.class.now
+      id
+    end
+
+    #
+    # Delete and unregister a timer.
+    #
+    # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
+    # @return [nil]
+    #
+    def delete(id_or_name)
+      if id_or_name.is_a?(Integer)
+        del = @ll.delete(id_or_name)
+        @ll.delete(del[0]) if del
+      else
+        del = @ll.delete(id_or_name.to_s)
+        @ll.delete(del.__id__) if del
+      end
+      nil
+    end
+
+    #
+    # Print the name or ID, the caller location and the runtime since timer was
+    # created.
+    #
+    # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
+    # @return [Integer] timer ID
+    # @raise [ArgumentError] when the given id or name is not a registered timer
+    #   identifier or name
+    #
+    def [](id_or_name)
+      time = self.class.now
+      timer = @ll[id_or_name.is_a?(Integer) ? id_or_name : id_or_name.to_s]
+      raise(ArgumentError, "not a timer - #{id_or_name.inspect}") unless timer
+      @cb[timer[0], Kernel.caller_locations(1, 1)[0], time - timer[1]]
+      timer.__id__
+    end
+
+    # @!visibility private
+    def initialize(&block)
+      @cb = block
+      @ll = {}
+    end
+  end
+
   ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
   NO_NAME = { :* => 1, :** => 1, :& => 1 }.compare_by_identity.freeze
   private_constant :ARG_SIG, :NO_NAME
@@ -343,6 +453,15 @@ module ImLost
   @trace = {}.compare_by_identity
   @caller_locations = true
   @output = $stderr.respond_to?(:puts) ? $stderr : STDERR
+
+  @timer =
+    TimerStore.new do |title, location, time|
+      @output.puts("T#{'*' unless time} #{title}")
+      @output.puts("  #{location.path}:#{location.lineno}") if @caller_locations
+      @output.puts("  #{time} sec.") if time
+    end
+
+  TimerStore.private_class_method(:new)
 
   @trace_calls = [
     TracePoint.new(:c_call) do |tp|

@@ -419,4 +419,51 @@ RSpec.describe ImLost do
       end
     end
   end
+
+  context 'anonymous timer' do
+    before { ImLost.caller_locations = true }
+
+    it 'prints the location of the timer creation' do
+      timer = ImLost.timer.create
+      ImLost.timer.delete(timer)
+
+      expect(output).to eq "T* #{timer}\n  #{__FILE__}:#{__LINE__ - 3}\n"
+    end
+
+    it 'prints the runtime since the timer was created' do
+      timer = ImLost.timer.create
+      ImLost.output = StringIO.new # reset output
+      ImLost.timer.delete(ImLost.timer[timer])
+
+      expect(output).to match(
+        /\A#{
+          Regexp.escape("T #{timer}\n  #{__FILE__}:#{__LINE__ - 4}")
+        }\n  #{RE_FLOAT} sec.\n\z/
+      )
+    end
+  end
+
+  context 'named timer' do
+    before { ImLost.caller_locations = true }
+
+    it 'prints the location of the timer creation' do
+      ImLost.timer.create(:tt1)
+
+      expect(output).to eq "T* tt1\n  #{__FILE__}:#{__LINE__ - 2}\n"
+
+      ImLost.timer.delete(:tt1)
+    end
+
+    it 'prints the runtime since the timer was created' do
+      ImLost.timer.create(:tt2)
+      ImLost.output = StringIO.new # reset output
+      ImLost.timer.delete(ImLost.timer[:tt2])
+
+      expect(output).to match(
+        /\A#{
+          Regexp.escape("T tt2\n  #{__FILE__}:#{__LINE__ - 4}")
+        }\n  #{RE_FLOAT} sec.\n\z/
+      )
+    end
+  end
 end
