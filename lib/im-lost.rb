@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+#
 # If you have overlooked something again and don't really understand what your
 # code is doing. If you have to maintain this application but can't really find
 # your way around and certainly can't track down that stupid error. If you feel
@@ -194,7 +195,6 @@ module ImLost
     #   Start tracing the given objects.
     #   @see untrace
     #   @see untrace_all!
-    #
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
@@ -462,7 +462,6 @@ module ImLost
       @output.puts("  #{location.path}:#{location.lineno}") if @caller_locations
       @output.puts("  #{time} sec.") if time
     end
-
   TimerStore.private_class_method(:new)
 
   @trace_calls = [
