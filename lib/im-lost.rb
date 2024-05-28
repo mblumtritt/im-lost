@@ -503,7 +503,7 @@ module ImLost
           '<',
           tp,
           tp.parameters.map do |kind, name|
-            next name if %i[* ** &].include?(name)
+            next name if NO_NAME.key?(name)
             "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
           end
         )

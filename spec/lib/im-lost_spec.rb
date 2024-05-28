@@ -232,6 +232,9 @@ RSpec.describe ImLost do
 
   context '.trace_exceptions' do
     it 'traces exceptions and rescue blocks' do
+      raise_location = "#{__FILE__}:#{__LINE__ + 4}"
+      rescue_location = "#{__FILE__}:#{__LINE__ + 4}"
+
       ImLost.trace_exceptions do
         raise(ArgumentError, 'not the answer - 21')
       rescue ArgumentError
@@ -241,14 +244,14 @@ RSpec.describe ImLost do
       if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 8}
+            #{raise_location}
         OUTPUT
       else
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 13}
+            #{raise_location}
           ! ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 14}
+            #{rescue_location}
         OUTPUT
       end
     end
@@ -271,6 +274,9 @@ RSpec.describe ImLost do
     end
 
     it 'allows to be stacked' do
+      raise_location = "#{__FILE__}:#{__LINE__ + 5}"
+      rescue_location = "#{__FILE__}:#{__LINE__ + 5}"
+
       ImLost.trace_exceptions(with_locations: false) do
         ImLost.trace_exceptions(with_locations: true) do
           raise(ArgumentError, 'not the answer - 42')
@@ -290,15 +296,15 @@ RSpec.describe ImLost do
       if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 17}
+            #{raise_location}
           x ArgumentError: not the answer - 21
         OUTPUT
       else
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 23}
+            #{raise_location}
           ! ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 24}
+            #{rescue_location}
           x ArgumentError: not the answer - 21
           ! ArgumentError: not the answer - 21
         OUTPUT
