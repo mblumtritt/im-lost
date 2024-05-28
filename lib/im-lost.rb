@@ -512,7 +512,7 @@ module ImLost
     end
   ]
 
-  supported = RUBY_VERSION.to_f >= 3.3 ? %i[raise rescue] : %i[raise]
+  supported = RUBY_VERSION.to_f < 3.3 ? %i[raise] : %i[raise rescue]
   @trace_exceptions =
     TracePoint.new(*supported) do |tp|
       ex = tp.raised_exception.inspect

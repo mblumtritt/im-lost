@@ -25,10 +25,8 @@ RSpec.describe ImLost do
   let(:sample) { TestSample.new }
   let(:output) { ImLost.output.string }
 
-  before do
-    ImLost.output = StringIO.new
-    ImLost.untrace_all!
-  end
+  before { ImLost.output = StringIO.new }
+  after { ImLost.untrace_all! }
 
   it 'has defined default attributes' do
     is_expected.to have_attributes(
@@ -99,19 +97,15 @@ RSpec.describe ImLost do
       expect(output).to eq "> TestSample#insp(**{})\n"
     end
 
-    if RUBY_VERSION.to_f < 3.1
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
+    it 'handles argument forwarding' do
+      sample.fwd(40, 2)
 
+      if RUBY_VERSION.to_f < 3.1
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, &)
           > TestSample#add(40, 2)
         OUTPUT
-      end
-    else
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
-
+      else
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, **, &)
           > TestSample#add(40, 2)
@@ -206,21 +200,17 @@ RSpec.describe ImLost do
       expect(output).to eq "< TestSample#insp(**{})\n  = \"{}\"\n"
     end
 
-    if RUBY_VERSION.to_f < 3.1
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
+    it 'handles argument forwarding' do
+      sample.fwd(40, 2)
 
+      if RUBY_VERSION.to_f < 3.1
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
           < TestSample#fwd(*, &)
             = 42
         OUTPUT
-      end
-    else
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
-
+      else
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
@@ -240,111 +230,77 @@ RSpec.describe ImLost do
     end
   end
 
-  if RUBY_VERSION.to_f > 3.3
-    context '.trace_exceptions' do
-      it 'traces exceptions and rescue blocks' do
-        ImLost.trace_exceptions do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
+  context '.trace_exceptions' do
+    it 'traces exceptions and rescue blocks' do
+      ImLost.trace_exceptions do
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
+      end
 
+      if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 7}
-          ! ArgumentError: not the answer - 21
             #{__FILE__}:#{__LINE__ - 8}
         OUTPUT
-      end
-
-      it 'allows to disable location information' do
-        ImLost.trace_exceptions(with_locations: false) do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-
+      else
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
+            #{__FILE__}:#{__LINE__ - 13}
           ! ArgumentError: not the answer - 21
+            #{__FILE__}:#{__LINE__ - 14}
         OUTPUT
       end
+    end
 
-      it 'allows to be stacked' do
-        ImLost.trace_exceptions(with_locations: false) do
-          ImLost.trace_exceptions(with_locations: true) do
-            raise(ArgumentError, 'not the answer - 42')
-          rescue ArgumentError
-            # nop
-          end
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-        begin
-          raise(NotImplementedError)
-        rescue NotImplementedError
-          # nop
-        end
+    it 'allows to disable location information' do
+      ImLost.trace_exceptions(with_locations: false) do
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
+      end
 
+      if RUBY_VERSION.to_f < 3.3
+        expect(output).to eq "x ArgumentError: not the answer - 21\n"
+      else
         expect(output).to eq <<~OUTPUT
-          x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 16}
-          ! ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 17}
           x ArgumentError: not the answer - 21
           ! ArgumentError: not the answer - 21
         OUTPUT
       end
     end
-  end
 
-  if RUBY_VERSION.to_f < 3.3
-    context '.trace_exceptions' do
-      it 'traces exceptions and rescue blocks' do
-        ImLost.trace_exceptions do
-          raise(ArgumentError, 'not the answer - 21')
+    it 'allows to be stacked' do
+      ImLost.trace_exceptions(with_locations: false) do
+        ImLost.trace_exceptions(with_locations: true) do
+          raise(ArgumentError, 'not the answer - 42')
         rescue ArgumentError
           # nop
         end
-
-        expect(output).to eq <<~OUTPUT
-          x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 7}
-        OUTPUT
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
+      end
+      begin
+        raise(NotImplementedError)
+      rescue NotImplementedError
+        # nop
       end
 
-      it 'allows to disable location information' do
-        ImLost.trace_exceptions(with_locations: false) do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-
-        expect(output).to eq "x ArgumentError: not the answer - 21\n"
-      end
-
-      it 'allows to be stacked' do
-        ImLost.trace_exceptions(with_locations: false) do
-          ImLost.trace_exceptions(with_locations: true) do
-            raise(ArgumentError, 'not the answer - 42')
-          rescue ArgumentError
-            # nop
-          end
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-        begin
-          raise(NotImplementedError)
-        rescue NotImplementedError
-          # nop
-        end
-
+      if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 16}
+            #{__FILE__}:#{__LINE__ - 17}
           x ArgumentError: not the answer - 21
+        OUTPUT
+      else
+        expect(output).to eq <<~OUTPUT
+          x ArgumentError: not the answer - 42
+            #{__FILE__}:#{__LINE__ - 23}
+          ! ArgumentError: not the answer - 42
+            #{__FILE__}:#{__LINE__ - 24}
+          x ArgumentError: not the answer - 21
+          ! ArgumentError: not the answer - 21
         OUTPUT
       end
     end
