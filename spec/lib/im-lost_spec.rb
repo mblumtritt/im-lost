@@ -419,4 +419,13 @@ RSpec.describe ImLost do
       end
     end
   end
+
+  context 'time a block' do
+    it 'prints the time used to execute a given block' do
+      ImLost.time { sample.add(20, 22) }
+
+      expect(output).to start_with "T #{__FILE__}:#{__LINE__ - 2}"
+      pp(output:)
+    end
+  end
 end
