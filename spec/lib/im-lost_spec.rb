@@ -99,7 +99,7 @@ RSpec.describe ImLost do
       expect(output).to eq "> TestSample#insp(**{})\n"
     end
 
-    if RUBY_VERSION < '3.1.0'
+    if RUBY_VERSION.to_f < 3.1
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
 
@@ -206,7 +206,7 @@ RSpec.describe ImLost do
       expect(output).to eq "< TestSample#insp(**{})\n  = \"{}\"\n"
     end
 
-    if RUBY_VERSION < '3.1.0'
+    if RUBY_VERSION.to_f < 3.1
       it 'handles argument forwarding' do
         sample.fwd(40, 2)
 
@@ -240,7 +240,7 @@ RSpec.describe ImLost do
     end
   end
 
-  if RUBY_VERSION >= '3.3.0'
+  if RUBY_VERSION.to_f > 3.3
     context '.trace_exceptions' do
       it 'traces exceptions and rescue blocks' do
         ImLost.trace_exceptions do
@@ -299,7 +299,7 @@ RSpec.describe ImLost do
     end
   end
 
-  if RUBY_VERSION < '3.3.0'
+  if RUBY_VERSION.to_f < 3.3
     context '.trace_exceptions' do
       it 'traces exceptions and rescue blocks' do
         ImLost.trace_exceptions do
