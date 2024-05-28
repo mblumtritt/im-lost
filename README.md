@@ -19,6 +19,7 @@ File.open('test.txt', 'w') do |file|
     file.puts(:world!)
   end
 end
+
 # output will look like
 #  > IO#<<(?)
 #    /projects/test.rb:1
@@ -38,6 +39,7 @@ ImLost.trace_exceptions do
 rescue SystemCallError
   raise('something went wrong!')
 end
+
 # output will look like
 #  x Errno::EEXIST: File exists @ rb_sysopen - /
 #    /projects/test.rb:2

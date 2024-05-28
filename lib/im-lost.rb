@@ -79,6 +79,7 @@ module ImLost
     #   rescue SystemCallError
     #     raise('something went wrong!')
     #   end
+    #
     #   # output will look like
     #   #   x Errno::EEXIST: File exists @ rb_sysopen - /
     #   #   /projects/test.rb:2
@@ -170,15 +171,16 @@ module ImLost
     #       file.puts(:world!)
     #     end
     #   end
-    #   output will look like
-    #     > IO#<<(?)
-    #       /projects/test.rb:1
-    #     > IO#write(*)
-    #       /projects/test.rb:1
-    #     > IO#puts(*)
-    #       /projects/test.rb:2
-    #     > IO#write(*)
-    #       /projects/test.rb:2
+    #
+    #   # output will look like
+    #   #   > IO#<<(?)
+    #   #     /projects/test.rb:1
+    #   #   > IO#write(*)
+    #   #     /projects/test.rb:1
+    #   #   > IO#puts(*)
+    #   #     /projects/test.rb:2
+    #   #   > IO#write(*)
+    #   #     /projects/test.rb:2
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
@@ -392,7 +394,7 @@ module ImLost
     end
   ]
 
-  supported = RUBY_VERSION >= '3.3.0' ? %i[raise rescue] : %i[raise]
+  supported = RUBY_VERSION.to_f >= 3.3 ? %i[raise rescue] : %i[raise]
   @trace_exceptions =
     TracePoint.new(*supported) do |tp|
       ex = tp.raised_exception.inspect
