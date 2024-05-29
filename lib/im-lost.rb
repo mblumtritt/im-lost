@@ -392,8 +392,21 @@ module ImLost
       def self.now = ::Time.now
     end
 
+    # @attribute [r] count
+    # @return [Integer] the number of registered timers
+    def count = ids.size
+
+    # @attribute [r] empty?
+    # @return [Boolean] wheter the timer store is empty or not
+    def empty? = ids.empty?
+
+    # @attribute [r] ids
+    # @return [Array<Integer>] IDs of all registered timers
+    def ids = (@ll.keys.keep_if { _1.is_a?(Integer) })
+
     #
     # Create and register a new named or anonymous timer.
+    # It print the ID or name of the created timer and includes the location.
     #
     # @param name [#to_s] optional timer name
     # @return [Integer] timer ID
@@ -408,25 +421,27 @@ module ImLost
     end
 
     #
-    # Delete and unregister a timer.
+    # Delete and unregister timers.
     #
-    # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
+    # @param id_or_names [Array<Integer, #to_s>] the IDs or the names
     # @return [nil]
     #
-    def delete(id_or_name)
-      if id_or_name.is_a?(Integer)
-        del = @ll.delete(id_or_name)
-        @ll.delete(del[0]) if del
-      else
-        del = @ll.delete(id_or_name.to_s)
-        @ll.delete(del.__id__) if del
+    def delete(*id_or_names)
+      id_or_names.flatten.each do |id|
+        if id.is_a?(Integer)
+          del = @ll.delete(id)
+          @ll.delete(del[0]) if del
+        else
+          del = @ll.delete(id.to_s)
+          @ll.delete(del.__id__) if del
+        end
       end
       nil
     end
 
     #
-    # Print the name or ID, the caller location and the runtime since timer was
-    # created.
+    # Print the ID or name and the runtime since timer was created.
+    # It includes the location.
     #
     # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
     # @return [Integer] timer ID
@@ -439,6 +454,19 @@ module ImLost
       raise(ArgumentError, "not a timer - #{id_or_name.inspect}") unless timer
       @cb[timer[0], Kernel.caller_locations(1, 1)[0], time - timer[1]]
       timer.__id__
+    end
+
+    #
+    # Print the ID or name and the runtime of all active timers.
+    # It includes the location.
+    #
+    # @return [nil]
+    #
+    def all
+      now = self.class.now
+      loc = Kernel.caller_locations(1, 1)[0]
+      @ll.values.uniq.reverse_each { |name, start| @cb[name, loc, now - start] }
+      nil
     end
 
     # @!visibility private

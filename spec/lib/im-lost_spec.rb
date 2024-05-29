@@ -382,48 +382,65 @@ RSpec.describe ImLost do
     end
   end
 
-  context 'anonymous timer' do
-    before { ImLost.caller_locations = true }
+  context '.timer' do
+    after { ImLost.timer.delete(ImLost.timer.ids) }
 
-    it 'prints the location of the timer creation' do
-      timer = ImLost.timer.create
-      ImLost.timer.delete(timer)
+    it 'supports attributes #count, #empty?, #ids' do
+      expect(ImLost.timer).to have_attributes(count: 0, empty?: true, ids: [])
 
-      expect(output).to eq(
-        "T #{timer}: created\n  #{__FILE__}:#{__LINE__ - 4}\n"
+      ids = 5.times.map { ImLost.timer.create }
+
+      expect(ImLost.timer).to have_attributes(
+        count: ids.size,
+        empty?: false,
+        ids: ids
       )
     end
 
-    it 'prints the runtime since the timer was created' do
-      timer = ImLost.timer.create
-      ImLost.output = StringIO.new # reset output
-      ImLost.timer.delete(ImLost.timer[timer])
-      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+    it 'prints information when an anonymous timer is created' do
+      id = ImLost.timer.create
 
-      expect(output).to match(
-        /\AT #{timer}: #{RE_FLOAT} sec.\n  #{location}\n\z/
-      )
+      expect(output).to eq "T #{id}: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
     end
-  end
 
-  context 'named timer' do
-    before { ImLost.caller_locations = true }
-
-    it 'prints the location of the timer creation' do
+    it 'prints information when a named timer is created' do
       ImLost.timer.create(:tt1)
 
       expect(output).to eq "T tt1: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
-
-      ImLost.timer.delete(:tt1)
     end
 
-    it 'prints the runtime since the timer was created' do
+    it 'prints runtime information for an anonymous timer' do
+      id = ImLost.timer.create
+      ImLost.output = StringIO.new # reset output
+      ImLost.timer[id]
+      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+
+      expect(output).to match(/\AT #{id}: #{RE_FLOAT} sec.\n  #{location}\n\z/)
+    end
+
+    it 'prints runtime information for a named timer' do
       ImLost.timer.create(:tt2)
       ImLost.output = StringIO.new # reset output
-      ImLost.timer.delete(ImLost.timer[:tt2])
+      ImLost.timer[:tt2]
       location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
 
       expect(output).to match(/\AT tt2: #{RE_FLOAT} sec.\n  #{location}\n\z/)
+    end
+
+    context '.timer#all' do
+      it 'prints the runtime of all timers' do
+        ImLost.timer.create(:first)
+        second = ImLost.timer.create
+        ImLost.output = StringIO.new # reset output
+
+        ImLost.timer.all
+        location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+
+        expect(output).to match(
+          /\AT #{second}: #{RE_FLOAT} sec.\n  #{location}\n(?#
+          )T first: #{RE_FLOAT} sec.\n  #{location}\n\z/
+        )
+      end
     end
   end
 end
