@@ -19,7 +19,7 @@ sleep(0.5) # or whatever
 puts 'print runtime for named timer:'
 ImLost.timer[:first]
 
-puts 'print runtime for anonymous named timer:'
+puts 'print runtime for anonymous timer:'
 ImLost.timer[second]
 
 puts 'delete a named timer'
