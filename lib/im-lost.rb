@@ -458,9 +458,10 @@ module ImLost
 
   @timer =
     TimerStore.new do |title, location, time|
-      @output.puts("T#{'*' unless time} #{title}")
-      @output.puts("  #{location.path}:#{location.lineno}") if @caller_locations
-      @output.puts("  #{time} sec.") if time
+      @output.puts(
+        "T #{title}: #{time ? "#{time} sec." : 'created'}",
+        "  #{location.path}:#{location.lineno}"
+      )
     end
   TimerStore.private_class_method(:new)
 

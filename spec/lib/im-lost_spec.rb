@@ -389,18 +389,19 @@ RSpec.describe ImLost do
       timer = ImLost.timer.create
       ImLost.timer.delete(timer)
 
-      expect(output).to eq "T* #{timer}\n  #{__FILE__}:#{__LINE__ - 3}\n"
+      expect(output).to eq(
+        "T #{timer}: created\n  #{__FILE__}:#{__LINE__ - 4}\n"
+      )
     end
 
     it 'prints the runtime since the timer was created' do
       timer = ImLost.timer.create
       ImLost.output = StringIO.new # reset output
       ImLost.timer.delete(ImLost.timer[timer])
+      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
 
       expect(output).to match(
-        /\A#{
-          Regexp.escape("T #{timer}\n  #{__FILE__}:#{__LINE__ - 4}")
-        }\n  #{RE_FLOAT} sec.\n\z/
+        /\AT #{timer}: #{RE_FLOAT} sec.\n  #{location}\n\z/
       )
     end
   end
@@ -411,7 +412,7 @@ RSpec.describe ImLost do
     it 'prints the location of the timer creation' do
       ImLost.timer.create(:tt1)
 
-      expect(output).to eq "T* tt1\n  #{__FILE__}:#{__LINE__ - 2}\n"
+      expect(output).to eq "T tt1: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
 
       ImLost.timer.delete(:tt1)
     end
@@ -420,12 +421,9 @@ RSpec.describe ImLost do
       ImLost.timer.create(:tt2)
       ImLost.output = StringIO.new # reset output
       ImLost.timer.delete(ImLost.timer[:tt2])
+      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
 
-      expect(output).to match(
-        /\A#{
-          Regexp.escape("T tt2\n  #{__FILE__}:#{__LINE__ - 4}")
-        }\n  #{RE_FLOAT} sec.\n\z/
-      )
+      expect(output).to match(/\AT tt2: #{RE_FLOAT} sec.\n  #{location}\n\z/)
     end
   end
 end
