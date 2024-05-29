@@ -318,11 +318,11 @@ module ImLost
       vars = obj.instance_variables
       if vars.empty?
         @output.puts('  <no instance variables defined>')
-      else
-        @output.puts('  instance variables:')
-        vars.sort!.each do |name|
-          @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
-        end
+        return obj
+      end
+      @output.puts('  instance variables:')
+      vars.sort!.each do |name|
+        @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
       end
       obj
     end
@@ -332,11 +332,11 @@ module ImLost
       vars = binding.local_variables
       if vars.empty?
         @output.puts('  <no local variables>')
-      else
-        @output.puts('  local variables:')
-        vars.sort!.each do |name|
-          @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
-        end
+        return self
+      end
+      @output.puts('  local variables:')
+      vars.sort!.each do |name|
+        @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
       end
       self
     end
