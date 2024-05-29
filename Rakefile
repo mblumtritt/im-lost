@@ -15,6 +15,6 @@ CLOBBER << 'doc'
 YARD::Rake::YardocTask.new(:doc) { _1.stats_options = %w[--list-undoc] }
 
 desc 'Run YARD development server'
-task('doc:dev' => :clobber) { exec('yard server --reload') }
+task('doc:dev' => :clobber) { exec 'yard server --reload' }
 
-task(:default) { exec('rake --tasks') }
+task(:default) { exec 'rake --tasks' }

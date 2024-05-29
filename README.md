@@ -19,6 +19,7 @@ File.open('test.txt', 'w') do |file|
     file.puts(:world!)
   end
 end
+
 # output will look like
 #  > IO#<<(?)
 #    /projects/test.rb:1
@@ -38,6 +39,7 @@ ImLost.trace_exceptions do
 rescue SystemCallError
   raise('something went wrong!')
 end
+
 # output will look like
 #  x Errno::EEXIST: File exists @ rb_sysopen - /
 #    /projects/test.rb:2
@@ -47,7 +49,7 @@ end
 #    /projects/test.rb:4
 ```
 
-When you like to know if and when a code point is reached, `ImLost.here` will help:
+When you like to know if a code point is reached, `ImLost.here` will help:
 
 ```ruby
 ImLost.here

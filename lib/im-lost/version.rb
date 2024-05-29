@@ -2,5 +2,5 @@
 
 module ImLost
   # The version number of the gem.
-  VERSION = '1.0.2'
+  VERSION = '1.1.0'
 end

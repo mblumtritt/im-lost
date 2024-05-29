@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+#
 # If you have overlooked something again and don't really understand what your
 # code is doing. If you have to maintain this application but can't really find
 # your way around and certainly can't track down that stupid error. If you feel
@@ -54,6 +55,12 @@ module ImLost
     end
 
     #
+    # @return [TimerStore] the timer store used to estimate the runtime of
+    #   your code
+    #
+    attr_reader :timer
+
+    #
     # Enables/disables tracing of method calls.
     # This is enabled by default.
     #
@@ -79,6 +86,7 @@ module ImLost
     #   rescue SystemCallError
     #     raise('something went wrong!')
     #   end
+    #
     #   # output will look like
     #   #   x Errno::EEXIST: File exists @ rb_sysopen - /
     #   #   /projects/test.rb:2
@@ -170,15 +178,16 @@ module ImLost
     #       file.puts(:world!)
     #     end
     #   end
-    #   output will look like
-    #     > IO#<<(?)
-    #       /projects/test.rb:1
-    #     > IO#write(*)
-    #       /projects/test.rb:1
-    #     > IO#puts(*)
-    #       /projects/test.rb:2
-    #     > IO#write(*)
-    #       /projects/test.rb:2
+    #
+    #   # output will look like
+    #   #   > IO#<<(?)
+    #   #     /projects/test.rb:1
+    #   #   > IO#write(*)
+    #   #     /projects/test.rb:1
+    #   #   > IO#puts(*)
+    #   #     /projects/test.rb:2
+    #   #   > IO#write(*)
+    #   #     /projects/test.rb:2
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
@@ -186,7 +195,6 @@ module ImLost
     #   Start tracing the given objects.
     #   @see untrace
     #   @see untrace_all!
-    #
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
@@ -257,7 +265,7 @@ module ImLost
       @trace[traced] = traced if traced
     end
 
-    protected
+    private
 
     def as_sig(prefix, info, args)
       args = args.join(', ')
@@ -268,8 +276,6 @@ module ImLost
         "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
       end
     end
-
-    private
 
     def _trace(arg)
       id = arg.__id__
@@ -312,11 +318,11 @@ module ImLost
       vars = obj.instance_variables
       if vars.empty?
         @output.puts('  <no instance variables defined>')
-      else
-        @output.puts('  instance variables:')
-        vars.sort!.each do |name|
-          @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
-        end
+        return obj
+      end
+      @output.puts('  instance variables:')
+      vars.sort!.each do |name|
+        @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
       end
       obj
     end
@@ -326,13 +332,147 @@ module ImLost
       vars = binding.local_variables
       if vars.empty?
         @output.puts('  <no local variables>')
-      else
-        @output.puts('  local variables:')
-        vars.sort!.each do |name|
-          @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
-        end
+        return self
+      end
+      @output.puts('  local variables:')
+      vars.sort!.each do |name|
+        @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
       end
       self
+    end
+  end
+
+  #
+  # A store to create and register timers you can use to estimate the runtime of
+  # some code.
+  #
+  # All timers are identified by an unique ID or a name.
+  #
+  # @example Use a named timer
+  #   ImLost.timer.create('my_test')
+  #
+  #   # ...your code here...
+  #
+  #   ImLost.timer['my_test']
+  #   # => prints the timer name, this location and runtime so far
+  #
+  #   # ...more code here...
+  #
+  #   ImLost.timer['my_test']
+  #   # => prints the timer name, this location and runtime since the timer was created
+  #
+  #   ImLost.timer.delete('my_test')
+  #   # the timer with name 'my_test' is not longer valid now
+  #
+  #
+  # @example Use an anonymous timer (identified by ID)
+  #   tmr = ImLost.timer.create
+  #
+  #   # ...your code here...
+  #
+  #   ImLost.timer[tmr]
+  #   # => prints the timer ID, this location and runtime so far
+  #
+  #   # ...more code here...
+  #
+  #   ImLost.timer[tmr]
+  #   # => prints the timer ID, this location and runtime since the timer was created
+  #
+  #   ImLost.timer.delete(tmr)
+  #   # the timer with the ID `tmr` is not longer valid now
+  #
+  # @see ImLost.timer
+  #
+  class TimerStore
+    if defined?(Process::CLOCK_MONOTONIC)
+      # @return [Float] current time
+      def self.now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    else
+      # @return [Float] current time
+      def self.now = ::Time.now
+    end
+
+    # @attribute [r] count
+    # @return [Integer] the number of registered timers
+    def count = ids.size
+
+    # @attribute [r] empty?
+    # @return [Boolean] wheter the timer store is empty or not
+    def empty? = ids.empty?
+
+    # @attribute [r] ids
+    # @return [Array<Integer>] IDs of all registered timers
+    def ids = (@ll.keys.keep_if { _1.is_a?(Integer) })
+
+    #
+    # Create and register a new named or anonymous timer.
+    # It print the ID or name of the created timer and includes the location.
+    #
+    # @param name [#to_s] optional timer name
+    # @return [Integer] timer ID
+    #
+    def create(name = nil)
+      timer = []
+      @ll[id = timer.__id__] = timer
+      name ? @ll[name = name.to_s] = timer : name = id
+      @cb[name, Kernel.caller_locations(1, 1)[0]]
+      timer << name << self.class.now
+      id
+    end
+
+    #
+    # Delete and unregister timers.
+    #
+    # @param id_or_names [Array<Integer, #to_s>] the IDs or the names
+    # @return [nil]
+    #
+    def delete(*id_or_names)
+      id_or_names.flatten.each do |id|
+        if id.is_a?(Integer)
+          del = @ll.delete(id)
+          @ll.delete(del[0]) if del
+        else
+          del = @ll.delete(id.to_s)
+          @ll.delete(del.__id__) if del
+        end
+      end
+      nil
+    end
+
+    #
+    # Print the ID or name and the runtime since timer was created.
+    # It includes the location.
+    #
+    # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
+    # @return [Integer] timer ID
+    # @raise [ArgumentError] when the given id or name is not a registered timer
+    #   identifier or name
+    #
+    def [](id_or_name)
+      time = self.class.now
+      timer = @ll[id_or_name.is_a?(Integer) ? id_or_name : id_or_name.to_s]
+      raise(ArgumentError, "not a timer - #{id_or_name.inspect}") unless timer
+      @cb[timer[0], Kernel.caller_locations(1, 1)[0], time - timer[1]]
+      timer.__id__
+    end
+
+    #
+    # Print the ID or name and the runtime of all active timers.
+    # It includes the location.
+    #
+    # @return [nil]
+    #
+    def all
+      now = self.class.now
+      loc = Kernel.caller_locations(1, 1)[0]
+      @ll.values.uniq.reverse_each { |name, start| @cb[name, loc, now - start] }
+      nil
+    end
+
+    # @!visibility private
+    def initialize(&block)
+      @cb = block
+      @ll = {}
     end
   end
 
@@ -343,6 +483,15 @@ module ImLost
   @trace = {}.compare_by_identity
   @caller_locations = true
   @output = $stderr.respond_to?(:puts) ? $stderr : STDERR
+
+  @timer =
+    TimerStore.new do |title, location, time|
+      @output.puts(
+        "T #{title}: #{time ? "#{time} sec." : 'created'}",
+        "  #{location.path}:#{location.lineno}"
+      )
+    end
+  TimerStore.private_class_method(:new)
 
   @trace_calls = [
     TracePoint.new(:c_call) do |tp|
@@ -383,7 +532,7 @@ module ImLost
           '<',
           tp,
           tp.parameters.map do |kind, name|
-            next name if %i[* ** &].include?(name)
+            next name if NO_NAME.key?(name)
             "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
           end
         )
@@ -392,7 +541,7 @@ module ImLost
     end
   ]
 
-  supported = RUBY_VERSION >= '3.3.0' ? %i[raise rescue] : %i[raise]
+  supported = RUBY_VERSION.to_f < 3.3 ? %i[raise] : %i[raise rescue]
   @trace_exceptions =
     TracePoint.new(*supported) do |tp|
       ex = tp.raised_exception.inspect

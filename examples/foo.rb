@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../lib/im-lost'
+require 'im-lost'
 
 class Foo
   def self.create(value:) = new(value)

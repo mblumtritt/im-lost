@@ -25,10 +25,8 @@ RSpec.describe ImLost do
   let(:sample) { TestSample.new }
   let(:output) { ImLost.output.string }
 
-  before do
-    ImLost.output = StringIO.new
-    ImLost.untrace_all!
-  end
+  before { ImLost.output = StringIO.new }
+  after { ImLost.untrace_all! }
 
   it 'has defined default attributes' do
     is_expected.to have_attributes(
@@ -99,19 +97,15 @@ RSpec.describe ImLost do
       expect(output).to eq "> TestSample#insp(**{})\n"
     end
 
-    if RUBY_VERSION < '3.1.0'
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
+    it 'handles argument forwarding' do
+      sample.fwd(40, 2)
 
+      if RUBY_VERSION.to_f < 3.1
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, &)
           > TestSample#add(40, 2)
         OUTPUT
-      end
-    else
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
-
+      else
         expect(output).to eq <<~OUTPUT
           > TestSample#fwd(*, **, &)
           > TestSample#add(40, 2)
@@ -206,21 +200,17 @@ RSpec.describe ImLost do
       expect(output).to eq "< TestSample#insp(**{})\n  = \"{}\"\n"
     end
 
-    if RUBY_VERSION < '3.1.0'
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
+    it 'handles argument forwarding' do
+      sample.fwd(40, 2)
 
+      if RUBY_VERSION.to_f < 3.1
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
           < TestSample#fwd(*, &)
             = 42
         OUTPUT
-      end
-    else
-      it 'handles argument forwarding' do
-        sample.fwd(40, 2)
-
+      else
         expect(output).to eq <<~OUTPUT
           < TestSample#add(40, 2)
             = 42
@@ -240,111 +230,83 @@ RSpec.describe ImLost do
     end
   end
 
-  if RUBY_VERSION >= '3.3.0'
-    context '.trace_exceptions' do
-      it 'traces exceptions and rescue blocks' do
-        ImLost.trace_exceptions do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
+  context '.trace_exceptions' do
+    it 'traces exceptions and rescue blocks' do
+      raise_location = "#{__FILE__}:#{__LINE__ + 4}"
+      rescue_location = "#{__FILE__}:#{__LINE__ + 4}"
 
-        expect(output).to eq <<~OUTPUT
-          x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 7}
-          ! ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 8}
-        OUTPUT
+      ImLost.trace_exceptions do
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
       end
 
-      it 'allows to disable location information' do
-        ImLost.trace_exceptions(with_locations: false) do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-
+      if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 21
+            #{raise_location}
+        OUTPUT
+      else
+        expect(output).to eq <<~OUTPUT
+          x ArgumentError: not the answer - 21
+            #{raise_location}
           ! ArgumentError: not the answer - 21
+            #{rescue_location}
         OUTPUT
       end
+    end
 
-      it 'allows to be stacked' do
-        ImLost.trace_exceptions(with_locations: false) do
-          ImLost.trace_exceptions(with_locations: true) do
-            raise(ArgumentError, 'not the answer - 42')
-          rescue ArgumentError
-            # nop
-          end
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-        begin
-          raise(NotImplementedError)
-        rescue NotImplementedError
-          # nop
-        end
+    it 'allows to disable location information' do
+      ImLost.trace_exceptions(with_locations: false) do
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
+      end
 
+      if RUBY_VERSION.to_f < 3.3
+        expect(output).to eq "x ArgumentError: not the answer - 21\n"
+      else
         expect(output).to eq <<~OUTPUT
-          x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 16}
-          ! ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 17}
           x ArgumentError: not the answer - 21
           ! ArgumentError: not the answer - 21
         OUTPUT
       end
     end
-  end
 
-  if RUBY_VERSION < '3.3.0'
-    context '.trace_exceptions' do
-      it 'traces exceptions and rescue blocks' do
-        ImLost.trace_exceptions do
-          raise(ArgumentError, 'not the answer - 21')
+    it 'allows to be stacked' do
+      raise_location = "#{__FILE__}:#{__LINE__ + 5}"
+      rescue_location = "#{__FILE__}:#{__LINE__ + 5}"
+
+      ImLost.trace_exceptions(with_locations: false) do
+        ImLost.trace_exceptions(with_locations: true) do
+          raise(ArgumentError, 'not the answer - 42')
         rescue ArgumentError
           # nop
         end
-
-        expect(output).to eq <<~OUTPUT
-          x ArgumentError: not the answer - 21
-            #{__FILE__}:#{__LINE__ - 7}
-        OUTPUT
+        raise(ArgumentError, 'not the answer - 21')
+      rescue ArgumentError
+        # nop
+      end
+      begin
+        raise(NotImplementedError)
+      rescue NotImplementedError
+        # nop
       end
 
-      it 'allows to disable location information' do
-        ImLost.trace_exceptions(with_locations: false) do
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-
-        expect(output).to eq "x ArgumentError: not the answer - 21\n"
-      end
-
-      it 'allows to be stacked' do
-        ImLost.trace_exceptions(with_locations: false) do
-          ImLost.trace_exceptions(with_locations: true) do
-            raise(ArgumentError, 'not the answer - 42')
-          rescue ArgumentError
-            # nop
-          end
-          raise(ArgumentError, 'not the answer - 21')
-        rescue ArgumentError
-          # nop
-        end
-        begin
-          raise(NotImplementedError)
-        rescue NotImplementedError
-          # nop
-        end
-
+      if RUBY_VERSION.to_f < 3.3
         expect(output).to eq <<~OUTPUT
           x ArgumentError: not the answer - 42
-            #{__FILE__}:#{__LINE__ - 16}
+            #{raise_location}
           x ArgumentError: not the answer - 21
+        OUTPUT
+      else
+        expect(output).to eq <<~OUTPUT
+          x ArgumentError: not the answer - 42
+            #{raise_location}
+          ! ArgumentError: not the answer - 42
+            #{rescue_location}
+          x ArgumentError: not the answer - 21
+          ! ArgumentError: not the answer - 21
         OUTPUT
       end
     end
@@ -416,6 +378,68 @@ RSpec.describe ImLost do
 
       it 'returns ImLost' do
         expect(ImLost.vars(binding)).to be ImLost
+      end
+    end
+  end
+
+  context '.timer' do
+    after { ImLost.timer.delete(ImLost.timer.ids) }
+
+    it 'supports attributes #count, #empty?, #ids' do
+      expect(ImLost.timer).to have_attributes(count: 0, empty?: true, ids: [])
+
+      ids = 5.times.map { ImLost.timer.create }
+
+      expect(ImLost.timer).to have_attributes(
+        count: ids.size,
+        empty?: false,
+        ids: ids
+      )
+    end
+
+    it 'prints information when an anonymous timer is created' do
+      id = ImLost.timer.create
+
+      expect(output).to eq "T #{id}: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
+    end
+
+    it 'prints information when a named timer is created' do
+      ImLost.timer.create(:tt1)
+
+      expect(output).to eq "T tt1: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
+    end
+
+    it 'prints runtime information for an anonymous timer' do
+      id = ImLost.timer.create
+      ImLost.output = StringIO.new # reset output
+      ImLost.timer[id]
+      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+
+      expect(output).to match(/\AT #{id}: #{RE_FLOAT} sec.\n  #{location}\n\z/)
+    end
+
+    it 'prints runtime information for a named timer' do
+      ImLost.timer.create(:tt2)
+      ImLost.output = StringIO.new # reset output
+      ImLost.timer[:tt2]
+      location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+
+      expect(output).to match(/\AT tt2: #{RE_FLOAT} sec.\n  #{location}\n\z/)
+    end
+
+    context '.timer#all' do
+      it 'prints the runtime of all timers' do
+        ImLost.timer.create(:first)
+        second = ImLost.timer.create
+        ImLost.output = StringIO.new # reset output
+
+        ImLost.timer.all
+        location = Regexp.escape("#{__FILE__}:#{__LINE__ - 1}")
+
+        expect(output).to match(
+          /\AT #{second}: #{RE_FLOAT} sec.\n  #{location}\n(?#
+          )T first: #{RE_FLOAT} sec.\n  #{location}\n\z/
+        )
       end
     end
   end
