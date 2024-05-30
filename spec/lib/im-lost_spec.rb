@@ -407,15 +407,27 @@ RSpec.describe ImLost do
       it 'prints thread variables' do
         thread[:var] = 41
         ImLost.vars(thread.join)
+        location = "#{__FILE__}:#{__LINE__ - 1}"
 
-        expect(output).to eq <<~OUTPUT
-          = #{__FILE__}:#{__LINE__ - 3}
-            terminated Thread
-            > fiber-local variables
-              var: 21
-            > thread variables
-              result: 42
-        OUTPUT
+        if defined?(thread.native_thread_id)
+          expect(output).to eq <<~OUTPUT
+            = #{location}
+              terminated Thread
+              > fiber-local variables
+                var: 21
+              > thread variables
+                result: 42
+          OUTPUT
+        else
+          expect(output).to eq <<~OUTPUT
+            = #{location}
+              terminated Thread #{thread.__id__}
+              > fiber-local variables
+                var: 21
+              > thread variables
+                result: 42
+          OUTPUT
+        end
       end
 
       it 'returns given thread' do
