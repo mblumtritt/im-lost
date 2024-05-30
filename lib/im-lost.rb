@@ -243,23 +243,64 @@ module ImLost
     end
 
     #
-    # Inspect internal variables.
+    # Inspect internal variables of a given object.
     #
-    # @overload vars(binding)
-    #   Inspect local variables of given Binding.
-    #   @param binding [Binding] which local variables should be print
-    #   @return [self] itself
+    # @example Inspect current instance variables
+    #   @a = 22
+    #   b = 20
+    #   c = @a + b
+    #   ImLost.vars(self)
+    #   # => print value of `@a`
     #
-    # @overload vars(object)
-    #   Inspect instance variables of given object.
-    #   @param object [Object] which instance variables should be print
-    #   @return [Object] the given object
+    # @example Inspect local variables
+    #   @a = 22
+    #   b = 20
+    #   c = @a + b
+    #   ImLost.vars(binding)
+    #   # => print values of `b` and 'c'
+    #
+    # @example Inspect a thread's variables
+    #   th = Thread.new { th[:var1] += 20 }
+    #   th[:var1] = 22
+    #   ImLost.vars(th)
+    #   # => print value of `var1`
+    #   th.join
+    #   ImLost.vars(th)
+    #
+    # @example Inspect the current fiber's storage
+    #   Fiber[:var1] = 22
+    #   Fiber[:var2] = 20
+    #   Fiber[:var3] = Fiber[:var1] + Fiber[:var2]
+    #   ImLost.vars(Fiber.current)
+    #
+    # When the given object is
+    #
+    # - a `Binding` it prints the local variables of the binding
+    # - a `Thread` it prints the fiber-local and thread variables
+    # - the current `Fiber` it prints the fibers' storage
+    #
+    # Be aware that only the current fiber can be inspected.
+    #
+    # When the given object can not be inspected it prints an error message.
+    #
+    # @param object [Object] which instance variables should be print
+    # @return [Object] the given object
     #
     def vars(object)
       traced = @trace.delete(object.__id__)
-      return _local_vars(object) if object.is_a?(Binding)
-      return unless object.respond_to?(:instance_variables)
-      _vars(object, Kernel.caller_locations(1, 1)[0])
+      return _local_vars(object) if Binding === object
+      location = Kernel.caller_locations(1, 1)[0]
+      @output.puts("= #{location.path}:#{location.lineno}")
+      if Thread === object
+        _thread_vars(object)
+      elsif Fiber === object
+        _fiber_vars(object)
+      elsif defined?(object.instance_variables)
+        _instance_vars(object)
+      else
+        @output.puts('  !!! unable to retrieve vars')
+      end
+      object
     ensure
       @trace[traced] = traced if traced
     end
@@ -312,32 +353,59 @@ module ImLost
       ids.each { @trace.delete(_1) }
     end
 
-    def _vars(obj, location)
-      @output.puts("= #{location.path}:#{location.lineno}")
-      vars = obj.instance_variables
-      if vars.empty?
-        @output.puts('  <no instance variables defined>')
-        return obj
-      end
-      @output.puts('  instance variables:')
-      vars.sort!.each do |name|
-        @output.puts("  #{name}: #{obj.instance_variable_get(name).inspect}")
-      end
-      obj
-    end
-
     def _local_vars(binding)
       @output.puts("= #{binding.source_location.join(':')}")
-      vars = binding.local_variables
-      if vars.empty?
-        @output.puts('  <no local variables>')
-        return self
+      _print_vars('local variables', binding.local_variables) do |name|
+        binding.local_variable_get(name)
       end
-      @output.puts('  local variables:')
-      vars.sort!.each do |name|
-        @output.puts("  #{name}: #{binding.local_variable_get(name).inspect}")
+      binding
+    end
+
+    def _thread_vars(thread)
+      @output.puts("  #{_thread_identifier(thread)}")
+      fvars = thread.keys
+      unless fvars.empty?
+        _print_vars('fiber-local variables', fvars) { thread[_1] }
       end
-      self
+      _print_vars('thread variables', thread.thread_variables) do |name|
+        thread.thread_variable_get(name)
+      end
+    end
+
+    def _fiber_vars(fiber)
+      if Fiber.current == fiber
+        storage = fiber.storage || {}
+        return _print_vars('fiber storage', storage.keys) { storage[_1] }
+      end
+      @output.puts(
+        '  !!! given Fiber is not the current Fiber',
+        "      #{fiber}"
+      )
+    end
+
+    def _instance_vars(object)
+      _print_vars('instance variables', object.instance_variables) do |name|
+        object.instance_variable_get(name)
+      end
+    end
+
+    def _thread_identifier(thread)
+      if thread.native_thread_id
+        return(
+          "#{thread.status} Thread #{thread.native_thread_id} #{
+            thread.name
+          }".rstrip
+        )
+      end
+      "#{
+        { false => 'terminated', nil => 'aborted' }[thread.status]
+      } Thread #{thread.native_thread_id} #{thread.name}".rstrip
+    end
+
+    def _print_vars(kind, names)
+      return @output.puts("  <no #{kind} defined>") if names.empty?
+      @output.puts("  > #{kind}")
+      names.sort!.each { @output.puts("    #{_1}: #{yield(_1).inspect}") }
     end
   end
 

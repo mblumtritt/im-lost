@@ -351,14 +351,27 @@ RSpec.describe ImLost do
 
       expect(output).to eq <<~OUTPUT
         = #{__FILE__}:#{__LINE__ - 3}
-          instance variables:
-          @result: 42
-          @state: :created
+          > instance variables
+            @result: 42
+            @state: :created
       OUTPUT
     end
 
     it 'returns given object' do
       expect(ImLost.vars(sample)).to be sample
+    end
+
+    context 'when instance variables could not be determined' do
+      let(:sample) { BasicObject.new }
+
+      it 'it prints an error message' do
+        ImLost.vars(sample)
+
+        expect(output).to eq <<~OUTPUT
+          = #{__FILE__}:#{__LINE__ - 3}
+            !!! unable to retrieve vars
+        OUTPUT
+      end
     end
 
     context 'when a Binding is given' do
@@ -370,14 +383,83 @@ RSpec.describe ImLost do
 
         expect(output).to eq <<~OUTPUT
           = #{__FILE__}:#{__LINE__ - 3}
-            local variables:
-            sample: "test"
-            test: "test"
+            > local variables
+              sample: "test"
+              test: "test"
         OUTPUT
       end
 
-      it 'returns ImLost' do
-        expect(ImLost.vars(binding)).to be ImLost
+      it 'returns given bindig' do
+        expect(ImLost.vars(binding)).to be_a Binding
+      end
+    end
+
+    context 'when a Thread is given' do
+      let(:thread) do
+        Thread.new do
+          Thread.current[:var] = 21
+          Thread.current.thread_variable_set(:result, 42)
+        end
+      end
+
+      after { thread.join }
+
+      it 'prints thread variables' do
+        thread[:var] = 41
+        ImLost.vars(thread.join)
+
+        expect(output).to eq <<~OUTPUT
+          = #{__FILE__}:#{__LINE__ - 3}
+            terminated Thread
+            > fiber-local variables
+              var: 21
+            > thread variables
+              result: 42
+        OUTPUT
+      end
+
+      it 'returns given thread' do
+        expect(ImLost.vars(thread)).to be thread
+      end
+    end
+
+    context 'when the current Fiber is given' do
+      before do
+        Fiber[:var1] = 22
+        Fiber[:var2] = 20
+        Fiber[:var3] = Fiber[:var1] + Fiber[:var2]
+      end
+
+      it 'prints the fiber storage' do
+        ImLost.vars(Fiber.current)
+
+        expect(output).to eq <<~OUTPUT
+          = #{__FILE__}:#{__LINE__ - 3}
+            > fiber storage
+              var1: 22
+              var2: 20
+              var3: 42
+        OUTPUT
+      end
+
+      it 'returns given fiber' do
+        expect(ImLost.vars(Fiber.current)).to be Fiber.current
+      end
+    end
+
+    context 'when a different Fiber is given' do
+      let(:fiber) { Fiber.new { 42 } }
+
+      after { fiber.kill }
+
+      it 'it prints an error message' do
+        ImLost.vars(fiber)
+
+        expect(output).to eq <<~OUTPUT
+          = #{__FILE__}:#{__LINE__ - 3}
+            !!! given Fiber is not the current Fiber
+                #{fiber.inspect}
+        OUTPUT
       end
     end
   end
