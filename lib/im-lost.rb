@@ -131,26 +131,26 @@ module ImLost
     #
     # Print the call location conditionally.
     #
-    # @example simply print location
+    # @example Print current location
     #   ImLost.here
     #
-    # @example print location when instance variable is empty
+    # @example Print current location when instance variable is empty
     #   ImLost.here(@name.empty?)
     #
-    # @example print location when instance variable is nil or empty
+    # @example Print current location when instance variable is nil or empty
     #   ImLost.here { @name.nil? || @name.empty? }
     #
     # @overload here
-    #   Prints the caller location.
+    #   Prints the call location.
     #   @return [true]
     #
     # @overload here(test)
-    #   Prints the caller location when given argument is truthy.
+    #   Prints the call location when given argument is truthy.
     #   @param test [Object]
     #   @return [Object] test
     #
     # @overload here
-    #   Prints the caller location when given block returns a truthy result.
+    #   Prints the call location when given block returns a truthy result.
     #   @yield When the block returns a truthy result the location will be print
     #   @yieldreturn [Object] return result
     #
@@ -166,12 +166,12 @@ module ImLost
     #
     # The given arguments can be any object instance or module or class.
     #
-    # @example trace method calls of an instance variable for a while
+    # @example Trace method calls of an instance variable for a while
     #   ImLost.trace(@file)
     #   # ...
     #   ImLost.untrace(@file)
     #
-    # @example temporary trace method calls
+    # @example Temporary trace method calls
     #   File.open('test.txt', 'w') do |file|
     #     ImLost.trace(file) do
     #       file << 'hello '
@@ -191,7 +191,7 @@ module ImLost
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
-    #   @return [[Object]] the traced object(s)
+    #   @return [Array<Object>] the traced object(s)
     #   Start tracing the given objects.
     #   @see untrace
     #   @see untrace_all!
@@ -212,16 +212,16 @@ module ImLost
     #
     # Stop tracing objects.
     #
-    # @example trace some objects for some code lines
-    #   traced_vars = ImLost.trace(@file, @client)
+    # @example Trace some objects for some code lines
+    #   traced_obj = ImLost.trace(@file, @client)
     #   # ...
-    #   ImLost.untrace(*traced_vars)
+    #   ImLost.untrace(*traced_obj)
     #
     # @see trace
     #
-    # @param args [[Object]] one or more objects which should not longer be
+    # @param args [[]Object]] one or more objects which should not longer be
     #   traced
-    # @return [[Object]] the object(s) which are not longer be traced
+    # @return [Array<Object>] the object(s) which are not longer be traced
     # @return [nil] when none of the objects was traced before
     #
     def untrace(*args)
@@ -230,9 +230,8 @@ module ImLost
     end
 
     #
-    # Stop tracing any object.
-    # (When you are really lost and just like to stop tracing of all your
-    #   objects.)
+    # Stop tracing any object. When you are really lost and just like to stop
+    # tracing of all your objects.
     #
     # @see trace
     #
@@ -365,7 +364,7 @@ module ImLost
   #   # the timer with name 'my_test' is not longer valid now
   #
   #
-  # @example Use an anonymous timer (identified by ID)
+  # @example Use an anonymous timer
   #   tmr = ImLost.timer.create
   #
   #   # ...your code here...
@@ -440,7 +439,7 @@ module ImLost
     end
 
     #
-    # Print the ID or name and the runtime since timer was created.
+    # Print the ID or name and the runtime since a timer was created.
     # It includes the location.
     #
     # @param id_or_name [Integer, #to_s] the identifier or the name of the timer
