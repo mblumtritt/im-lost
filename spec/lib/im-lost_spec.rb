@@ -476,7 +476,7 @@ RSpec.describe ImLost do
         end
       end
     else
-      pending 'for Fiber is not supported in this platform'
+      pending 'for Fiber is not supported on this platform'
     end
   end
 
