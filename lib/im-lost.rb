@@ -245,6 +245,8 @@ module ImLost
     #
     # Inspect internal variables of a given object.
     #
+    # @note The dedictaed handling of `Fiber` is platform dependend!
+    #
     # @example Inspect current instance variables
     #   @a = 22
     #   b = 20
@@ -293,7 +295,7 @@ module ImLost
       @output.puts("= #{location.path}:#{location.lineno}")
       if Thread === object
         _thread_vars(object)
-      elsif Fiber === object
+      elsif @fiber_supported && Fiber === object
         _fiber_vars(object)
       elsif defined?(object.instance_variables)
         _instance_vars(object)
@@ -617,6 +619,8 @@ module ImLost
       )
       @output.puts("  #{tp.path}:#{tp.lineno}") if @exception_locations
     end
+
+  @fiber_supported = !!(defined?(Fiber.current) && defined?(Fiber.storage))
 
   self.trace_calls = true
 end

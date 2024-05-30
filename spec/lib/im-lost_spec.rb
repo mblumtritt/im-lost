@@ -423,44 +423,48 @@ RSpec.describe ImLost do
       end
     end
 
-    context 'when the current Fiber is given' do
-      before do
-        Fiber[:var1] = 22
-        Fiber[:var2] = 20
-        Fiber[:var3] = Fiber[:var1] + Fiber[:var2]
+    if defined?(Fiber.current) && defined?(Fiber.storage)
+      context 'when the current Fiber is given' do
+        before do
+          Fiber[:var1] = 22
+          Fiber[:var2] = 20
+          Fiber[:var3] = Fiber[:var1] + Fiber[:var2]
+        end
+
+        it 'prints the fiber storage' do
+          ImLost.vars(Fiber.current)
+
+          expect(output).to eq <<~OUTPUT
+            = #{__FILE__}:#{__LINE__ - 3}
+              > fiber storage
+                var1: 22
+                var2: 20
+                var3: 42
+          OUTPUT
+        end
+
+        it 'returns given fiber' do
+          expect(ImLost.vars(Fiber.current)).to be Fiber.current
+        end
       end
 
-      it 'prints the fiber storage' do
-        ImLost.vars(Fiber.current)
+      context 'when a different Fiber is given' do
+        let(:fiber) { Fiber.new { 42 } }
 
-        expect(output).to eq <<~OUTPUT
-          = #{__FILE__}:#{__LINE__ - 3}
-            > fiber storage
-              var1: 22
-              var2: 20
-              var3: 42
-        OUTPUT
+        after { fiber.kill if defined?(fiber.kill) } # Ruby > v3.3.0
+
+        it 'it prints an error message' do
+          ImLost.vars(fiber)
+
+          expect(output).to eq <<~OUTPUT
+            = #{__FILE__}:#{__LINE__ - 3}
+              !!! given Fiber is not the current Fiber
+                  #{fiber.inspect}
+          OUTPUT
+        end
       end
-
-      it 'returns given fiber' do
-        expect(ImLost.vars(Fiber.current)).to be Fiber.current
-      end
-    end
-
-    context 'when a different Fiber is given' do
-      let(:fiber) { Fiber.new { 42 } }
-
-      after { fiber.kill }
-
-      it 'it prints an error message' do
-        ImLost.vars(fiber)
-
-        expect(output).to eq <<~OUTPUT
-          = #{__FILE__}:#{__LINE__ - 3}
-            !!! given Fiber is not the current Fiber
-                #{fiber.inspect}
-        OUTPUT
-      end
+    else
+      pending 'for Fiber is not supported in this platform'
     end
   end
 
