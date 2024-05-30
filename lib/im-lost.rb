@@ -392,16 +392,9 @@ module ImLost
     end
 
     def _thread_identifier(thread)
-      if thread.native_thread_id
-        return(
-          "#{thread.status} Thread #{thread.native_thread_id} #{
-            thread.name
-          }".rstrip
-        )
-      end
-      "#{
-        { false => 'terminated', nil => 'aborted' }[thread.status]
-      } Thread #{thread.native_thread_id} #{thread.name}".rstrip
+      "#{THREAD_STATE[thread.status] || thread.status} Thread #{
+        @thread_id[thread]
+      } #{thread.name}".rstrip
     end
 
     def _print_vars(kind, names)
@@ -547,7 +540,11 @@ module ImLost
 
   ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
   NO_NAME = { :* => 1, :** => 1, :& => 1 }.compare_by_identity.freeze
-  private_constant :ARG_SIG, :NO_NAME
+  THREAD_STATE = {
+    false => 'terminated',
+    nil => 'aborted'
+  }.compare_by_identity.freeze
+  private_constant :ARG_SIG, :NO_NAME, :THREAD_STATE
 
   @trace = {}.compare_by_identity
   @caller_locations = true
@@ -621,6 +618,12 @@ module ImLost
     end
 
   @fiber_supported = !!(defined?(Fiber.current) && defined?(Fiber.storage))
+  @thread_id =
+    if defined?(Thread.current.native_thread_id)
+      lambda(&:native_thread_id)
+    else
+      lambda(&:__id__)
+    end
 
   self.trace_calls = true
 end
