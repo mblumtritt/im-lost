@@ -26,9 +26,10 @@ module ImLost
 
     #
     # The output device used to write information.
-    # This should be an `IO` device or any other object responding to `#puts`.
+    # This should be an `IO` device or any other object responding to `#<<`
+    # like a Logger.
     #
-    # `$stderr` is configured by default.
+    # `STDERR` is configured by default.
     #
     # @example Write to a file
     #   ImLost.output = File.new('./trace', 'w')
@@ -50,8 +51,13 @@ module ImLost
     attr_reader :output
 
     def output=(value)
-      return @output = value if value.respond_to?(:puts)
-      raise(ArgumentError, "invalid output device - #{value.inspect}")
+      return @output = value if defined?(value.<<)
+      raise(
+        NoMethodError,
+        "undefined method `<<' for an instance of #{
+          Kernel.instance_method(:class).bind(value).call
+        }"
+      )
     end
 
     #
@@ -89,11 +95,11 @@ module ImLost
     #
     #   # output will look like
     #   #   x Errno::EEXIST: File exists @ rb_sysopen - /
-    #   #   /projects/test.rb:2
+    #   #     /examples/test.rb:2
     #   #   ! Errno::EEXIST: File exists @ rb_sysopen - /
-    #   #   /projects/test.rb:3
+    #   #     /examples/test.rb:3
     #   #   x RuntimeError: something went wrong!
-    #   #   /projects/test.rb:4
+    #   #     /examples/test.rb:4
     #
     # @param with_locations [Boolean] wheter the locations should be included
     #   into the exception trace information
@@ -113,7 +119,7 @@ module ImLost
 
     #
     # Enables/disables tracing of returned valuess of method calls.
-    # This is disabled by default.
+    # This is enabled by default.
     #
     # @attribute [r] trace_results
     # @return [Boolean] whether return values will be traced
@@ -157,7 +163,7 @@ module ImLost
     def here(test = true)
       return test if !test || (block_given? && !(test = yield))
       loc = Kernel.caller_locations(1, 1)[0]
-      @output.puts(": #{loc.path}:#{loc.lineno}")
+      @output << "* #{loc.path}:#{loc.lineno}\n"
       test
     end
 
@@ -181,13 +187,13 @@ module ImLost
     #
     #   # output will look like
     #   #   > IO#<<(?)
-    #   #     /projects/test.rb:1
+    #   #     /examples/test.rb:1
     #   #   > IO#write(*)
-    #   #     /projects/test.rb:1
+    #   #     /examples/test.rb:1
     #   #   > IO#puts(*)
-    #   #     /projects/test.rb:2
+    #   #     /examples/test.rb:2
     #   #   > IO#write(*)
-    #   #     /projects/test.rb:2
+    #   #     /examples/test.rb:2
     #
     # @overload trace(*args)
     #   @param args [[Object]] one or more objects to be traced
@@ -210,6 +216,14 @@ module ImLost
     end
 
     #
+    # Test if a given object is currently traced.
+    #
+    # @param arg [Object] object to be tested
+    # @return [Boolean] wheter the object is beeing traced
+    #
+    def traced?(obj) = @trace.key?(obj)
+
+    #
     # Stop tracing objects.
     #
     # @example Trace some objects for some code lines
@@ -225,8 +239,8 @@ module ImLost
     # @return [nil] when none of the objects was traced before
     #
     def untrace(*args)
-      ret = args.filter_map { @trace.delete(_1.__id__) ? _1 : nil }
-      args.size == 1 ? ret[0] : ret
+      args = args.filter_map { @trace.delete(_1) }
+      args.size < 2 ? args[0] : args
     end
 
     #
@@ -289,118 +303,101 @@ module ImLost
     # @return [Object] the given object
     #
     def vars(object)
-      traced = @trace.delete(object.__id__)
-      return _local_vars(object) if Binding === object
+      out = Out.new
+      traced = @trace.delete(object)
+      return _local_vars(out, object) if Binding === object
       location = Kernel.caller_locations(1, 1)[0]
-      @output.puts("= #{location.path}:#{location.lineno}")
-      if Thread === object
-        _thread_vars(object)
-      elsif @fiber_supported && Fiber === object
-        _fiber_vars(object)
-      elsif defined?(object.instance_variables)
-        _instance_vars(object)
-      else
-        @output.puts('  !!! unable to retrieve vars')
-      end
+      out << "* #{location.path}:#{location.lineno}"
+      return _thread_vars(out, object) if Thread === object
+      return _fiber_vars(out, object) if @fiber_supported && Fiber === object
+      return _instance_vars(out, object) if defined?(object.instance_variables)
+      out << '  !!! unable to retrieve vars'
       object
     ensure
       @trace[traced] = traced if traced
+      out.flush(@output)
     end
 
     private
 
-    def as_sig(prefix, info, args)
-      args = args.join(', ')
-      case info.self
-      when Class, Module
-        "#{prefix} #{info.self}.#{info.method_id}(#{args})"
-      else
-        "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
-      end
+    def _can_trace?(arg)
+      (id = arg.__id__) != __id__ && id != @output.__id__
     end
 
     def _trace(arg)
-      id = arg.__id__
-      @trace[id] = id if __id__ != id && @output.__id__ != id
+      @trace[arg] = arg if _can_trace?(arg)
       arg
     end
 
     def _trace_all(args)
-      args.each do |arg|
-        arg = arg.__id__
-        @trace[arg] = arg if __id__ != arg && @output.__id__ != arg
-      end
+      args.each { |arg| @trace[arg] = arg if _can_trace?(arg) }
       args
     end
 
     def _trace_b(arg)
-      id = arg.__id__
-      return yield(arg) if __id__ == id || @output.__id__ == id
+      return yield(arg) if @trace.key?(arg) || !_can_trace?(arg)
       begin
-        @trace[id] = id
+        @trace[arg] = arg
         yield(arg)
       ensure
-        @trace.delete(id) if id
+        @trace.delete(arg)
       end
     end
 
     def _trace_all_b(args)
-      ids =
+      temp =
         args.filter_map do |arg|
-          arg = arg.__id__
-          @trace[arg] = arg if __id__ != arg && @output.__id__ != arg
+          @trace[arg] = arg if !@trace.key?(arg) && _can_trace?(arg)
         end
       yield(args)
     ensure
-      ids.each { @trace.delete(_1) }
+      temp.each { @trace.delete(_1) }
     end
 
-    def _local_vars(binding)
-      @output.puts("= #{binding.source_location.join(':')}")
-      _print_vars('local variables', binding.local_variables) do |name|
+    def _local_vars(out, binding)
+      out << "* #{binding.source_location.join(':')}"
+      out.vars('local variables', binding.local_variables) do |name|
         binding.local_variable_get(name)
       end
       binding
     end
 
-    def _thread_vars(thread)
-      @output.puts("  #{_thread_identifier(thread)}")
-      fvars = thread.keys
-      unless fvars.empty?
-        _print_vars('fiber-local variables', fvars) { thread[_1] }
-      end
-      _print_vars('thread variables', thread.thread_variables) do |name|
+    def _thread_vars(out, thread)
+      out << "  #{_thread_identifier(thread)}"
+      flv = thread.keys
+      out.vars('fiber-local variables', flv) { thread[_1] } unless flv.empty?
+      out.vars('thread variables', thread.thread_variables) do |name|
         thread.thread_variable_get(name)
       end
+      thread
     end
 
-    def _fiber_vars(fiber)
+    def _fiber_vars(out, fiber)
       if Fiber.current == fiber
         storage = fiber.storage || {}
-        return _print_vars('fiber storage', storage.keys) { storage[_1] }
+        out.vars('fiber storage', storage.keys) { storage[_1] }
+      else
+        out << '  !!! given Fiber is not the current Fiber' <<
+          "      #{fiber.inspect}"
       end
-      @output.puts(
-        '  !!! given Fiber is not the current Fiber',
-        "      #{fiber}"
-      )
+      fiber
     end
 
-    def _instance_vars(object)
-      _print_vars('instance variables', object.instance_variables) do |name|
-        object.instance_variable_get(name)
+    def _instance_vars(out, object)
+      out.vars('instance variables', object.instance_variables) do |n|
+        object.instance_variable_get(n)
       end
+      object
     end
 
     def _thread_identifier(thread)
       "#{THREAD_STATE[thread.status] || thread.status} Thread #{
-        @thread_id[thread]
+        if defined?(thread.native_thread_id)
+          thread.native_thread_id
+        else
+          thread.__id__
+        end
       } #{thread.name}".rstrip
-    end
-
-    def _print_vars(kind, names)
-      return @output.puts("  <no #{kind} defined>") if names.empty?
-      @output.puts("  > #{kind}")
-      names.sort!.each { @output.puts("    #{_1}: #{yield(_1).inspect}") }
     end
   end
 
@@ -538,6 +535,30 @@ module ImLost
     end
   end
 
+  class Out
+    def initialize(*lines) = (@lines = lines)
+    def <<(str) = @lines << str
+    def location(loc) = @lines << "  #{loc.path}:#{loc.lineno}"
+    def flush(dev) = dev << (@lines << nil).join("\n")
+
+    def sig(prefix, info, args)
+      args = args.join(', ')
+      @lines << case info.self
+      when Class, Module
+        "#{prefix} #{info.self}.#{info.method_id}(#{args})"
+      else
+        "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
+      end
+    end
+
+    def vars(kind, names)
+      return @lines << "  <no #{kind} defined>" if names.empty?
+      @lines << "  > #{kind}"
+      names.sort!.each { @lines << "    #{_1}: #{yield(_1).inspect}" }
+    end
+  end
+  private_constant :Out
+
   ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
   NO_NAME = { :* => 1, :** => 1, :& => 1 }.compare_by_identity.freeze
   THREAD_STATE = {
@@ -547,83 +568,85 @@ module ImLost
   private_constant :ARG_SIG, :NO_NAME, :THREAD_STATE
 
   @trace = {}.compare_by_identity
-  @caller_locations = true
-  @output = $stderr.respond_to?(:puts) ? $stderr : STDERR
+  @caller_locations = @exception_locations = true
+  @output = STDERR
 
-  @timer =
-    TimerStore.new do |title, location, time|
-      @output.puts(
-        "T #{title}: #{time ? "#{time} sec." : 'created'}",
-        "  #{location.path}:#{location.lineno}"
-      )
-    end
+  @timer = TimerStore.new { |title, location, time| @output << <<~TIMER_MSG }
+    T #{title}: #{time ? "#{time} sec." : 'created'}
+      #{location.path}:#{location.lineno}
+  TIMER_MSG
   TimerStore.private_class_method(:new)
 
   @trace_calls = [
     TracePoint.new(:c_call) do |tp|
-      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
-      @output.puts(as_sig('>', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
-      @output.puts("  #{tp.path}:#{tp.lineno}") if @caller_locations
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
+      out = Out.new
+      out.sig('>', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' })
+      out.location(tp) if @caller_locations
+      out.flush(@output)
     end,
     TracePoint.new(:call) do |tp|
-      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
       ctx = tp.binding
-      @output.puts(
-        as_sig(
-          '>',
-          tp,
-          tp.parameters.map do |kind, name|
-            next name if NO_NAME.key?(name)
-            "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
-          end
-        )
+      out = Out.new
+      out.sig(
+        '>',
+        tp,
+        tp.parameters.map do |kind, name|
+          next name if NO_NAME.key?(name)
+          "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
+        end
       )
-      next unless @caller_locations
-      loc = ctx.eval('caller_locations(4,1)')[0]
-      @output.puts("  #{loc.path}:#{loc.lineno}")
+      out.location(ctx.eval('caller_locations(4,1)')[0]) if @caller_locations
+      out.flush(@output)
     end
   ]
 
   @trace_results = [
     TracePoint.new(:c_return) do |tp|
-      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
-      @output.puts(as_sig('<', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' }))
-      @output.puts("  = #{tp.return_value.inspect}")
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
+      out = Out.new
+      out.sig('<', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' })
+      out.location(tp) if @caller_locations
+      out << "  = #{tp.return_value.inspect}"
+      out.flush(@output)
     end,
     TracePoint.new(:return) do |tp|
-      next if !@trace.key?(tp.self.__id__) || tp.path == __FILE__
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
       ctx = tp.binding
-      @output.puts(
-        as_sig(
-          '<',
-          tp,
-          tp.parameters.map do |kind, name|
-            next name if NO_NAME.key?(name)
-            "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
-          end
-        )
+      out = Out.new
+      out.sig(
+        '<',
+        tp,
+        tp.parameters.map do |kind, name|
+          next name if NO_NAME.key?(name)
+          "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
+        end
       )
-      @output.puts("  = #{tp.return_value.inspect}")
+      out.location(ctx.eval('caller_locations(4,1)')[0]) if @caller_locations
+      out << "  = #{tp.return_value.inspect}"
+      out.flush(@output)
     end
   ]
 
   supported = RUBY_VERSION.to_f < 3.3 ? %i[raise] : %i[raise rescue]
   @trace_exceptions =
     TracePoint.new(*supported) do |tp|
-      ex = tp.raised_exception.inspect
-      @output.puts(
-        "#{tp.event == :raise ? 'x' : '!'} #{ex[0] == '#' ? ex[2..-2] : ex}"
-      )
-      @output.puts("  #{tp.path}:#{tp.lineno}") if @exception_locations
+      ex = tp.raised_exception
+      mark, parent = tp.event == :rescue ? ['!', ex.cause] : 'x'
+      ex = ex.inspect
+      out = Out.new("#{mark} #{ex[0] == '#' ? ex[2..-2] : ex}")
+      while parent
+        ex = parent.inspect
+        out << "  [#{ex[0] == '#' ? ex[2..-2] : ex}]"
+        parent = parent.cause
+      end
+      out.location(tp) if @exception_locations
+      out.flush(@output)
     end
 
-  @fiber_supported = !!(defined?(Fiber.current) && defined?(Fiber.storage))
-  @thread_id =
-    if defined?(Thread.current.native_thread_id)
-      lambda(&:native_thread_id)
-    else
-      lambda(&:__id__)
-    end
+  @fiber_supported =
+    !!(defined?(Fiber.current) && defined?(Fiber.current.storage))
 
-  self.trace_calls = true
+  self.trace_calls = self.trace_results = true
 end

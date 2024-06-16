@@ -9,7 +9,6 @@ INFO
 
 require 'im-lost'
 
-ImLost.trace_results = true
 ImLost.trace(Kernel, Object, Module, Class, self) do
   puts '=' * 79
   pp Class.new

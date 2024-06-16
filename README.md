@@ -22,13 +22,13 @@ end
 
 # output will look like
 #  > IO#<<(?)
-#    /projects/test.rb:1
+#    /examples/test.rb:1
 #  > IO#write(*)
-#    /projects/test.rb:1
+#    /examples/test.rb:1
 #  > IO#puts(*)
-#    /projects/test.rb:2
+#    /examples/test.rb:2
 #  > IO#write(*)
-#    /projects/test.rb:2
+#    /examples/test.rb:2
 ```
 
 When you need to know if exceptions are raised and handled you can use `ImLost.trace_exceptions`:
@@ -42,11 +42,11 @@ end
 
 # output will look like
 #  x Errno::EEXIST: File exists @ rb_sysopen - /
-#    /projects/test.rb:2
+#    /examples/test.rb:2
 #  ! Errno::EEXIST: File exists @ rb_sysopen - /
-#    /projects/test.rb:3
+#    /examples/test.rb:3
 #  x RuntimeError: something went wrong!
-#    /projects/test.rb:4
+#    /examples/test.rb:4
 ```
 
 When you like to know if a code point is reached, `ImLost.here` will help:
@@ -94,7 +94,6 @@ class Foo
   def bar = :bar
 end
 
-ImLost.trace_results = true
 ImLost.trace(Foo)
 
 my_foo = Foo.create(value: :foo!)
@@ -111,47 +110,55 @@ ImLost.vars(my_foo)
 
 # output will look like
 #   > Foo.create(:foo!)
-#     /projects/foo.rb:25
+#     /examples/foo.rb:24
 #   > Foo.new(*)
-#     /projects/foo.rb:6
+#     /examples/foo.rb:6
 #   < Foo.new(*)
-#     = #<Foo:0x00000001030810c0 @value=:foo!>
+#     /examples/foo.rb:6
+#     = #<Foo:0x00000001006448c0 @value=:foo!>
 #   < Foo.create(:foo!)
-#     = #<Foo:0x00000001030810c0 @value=:foo!>
+#     /examples/foo.rb:24
+#     = #<Foo:0x00000001006448c0 @value=:foo!>
 #   > Foo#foo(1, *[], :none, **{}, &nil)
-#     /projects/foo.rb:28
+#     /examples/foo.rb:27
 #   > Foo#bar()
-#     /projects/foo.rb:15
+#     /examples/foo.rb:15
 #   < Foo#bar()
+#     /examples/foo.rb:15
 #     = :bar
 #   < Foo#foo(1, *[], :none, **{}, &nil)
+#     /examples/foo.rb:27
 #     = "1-none-[]-{}-bar"
-#   = /projects/foo.rb:29
-#     instance variables:
-#     @value: "1-none-[]-{}-bar"
+#   * /examples/foo.rb:28
+#     > instance variables
+#       @value: "1-none-[]-{}-bar"
 #   > Foo#foo(2, *[:a, :b, :c], :some, **{:name=>:value}, &nil)
-#     /projects/foo.rb:31
+#     /examples/foo.rb:30
 #   > Foo#bar()
-#     /projects/foo.rb:15
+#     /examples/foo.rb:15
 #   < Foo#bar()
+#     /examples/foo.rb:15
 #     = :bar
 #   < Foo#foo(2, *[:a, :b, :c], :some, **{:name=>:value}, &nil)
+#     /examples/foo.rb:30
 #     = "2-some-[a,b,c]-{:name=>:value}-bar"
-#   = /projects/foo.rb:32
-#     instance variables:
-#     @value: "2-some-[a,b,c]-{:name=>:value}-bar"
-#   > Foo#foo(3, *[], nil, **{}, &#<Proc:0x00000001030aee30 /projects/foo.rb:34>)
-#     /projects/foo.rb:34
+#   * /examples/foo.rb:31
+#     > instance variables
+#       @value: "2-some-[a,b,c]-{:name=>:value}-bar"
+#   > Foo#foo(3, *[], nil, **{}, &#<Proc:0x0000000100641d28 /examples/foo.rb:33>)
+#     /examples/foo.rb:33
 #   > Foo#bar()
-#     /projects/foo.rb:15
+#     /examples/foo.rb:15
 #   < Foo#bar()
+#     /examples/foo.rb:15
 #     = :bar
 #   3--[]-{}-bar
-#   < Foo#foo(3, *[], nil, **{}, &#<Proc:0x00000001030aee30 /projects/foo.rb:34>)
+#   < Foo#foo(3, *[], nil, **{}, &#<Proc:0x0000000100641d28 /examples/foo.rb:33>)
+#     /examples/foo.rb:33
 #     = nil
-#   = /projects/foo.rb:35
-#     instance variables:
-#     @value: "3--[]-{}-bar"
+#   * /examples/foo.rb:34
+#     > instance variables
+#       @value: "3--[]-{}-bar"
 ```
 
 See [examples dir](./examples) for more…
