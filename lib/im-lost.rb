@@ -54,7 +54,7 @@ module ImLost
       return @output = value if defined?(value.<<)
       raise(
         NoMethodError,
-        "undefined method `<<' for an instance of #{
+        "undefined method '<<' for an instance of #{
           Kernel.instance_method(:class).bind(value).call
         }"
       )
@@ -73,13 +73,13 @@ module ImLost
     # @attribute [r] trace_calls
     # @return [Boolean] whether method calls will be traced
     #
-    def trace_calls = @trace_calls[0].enabled?
+    def trace_calls = @trace_calls.enabled?
 
     def trace_calls=(value)
       if value
-        @trace_calls.each(&:enable) unless trace_calls
+        @trace_calls.enable unless trace_calls
       elsif trace_calls
-        @trace_calls.each(&:disable)
+        @trace_calls.disable
       end
     end
 
@@ -124,13 +124,13 @@ module ImLost
     # @attribute [r] trace_results
     # @return [Boolean] whether return values will be traced
     #
-    def trace_results = @trace_results[0].enabled?
+    def trace_results = @trace_results.enabled?
 
     def trace_results=(value)
       if value
-        @trace_results.each(&:enable) unless trace_results
+        @trace_results.enable unless trace_results
       elsif trace_results
-        @trace_results.each(&:disable)
+        @trace_results.disable
       end
     end
 
@@ -303,19 +303,18 @@ module ImLost
     # @return [Object] the given object
     #
     def vars(object)
-      out = Out.new
+      out = LineStore.new
       traced = @trace.delete(object)
       return _local_vars(out, object) if Binding === object
-      location = Kernel.caller_locations(1, 1)[0]
-      out << "* #{location.path}:#{location.lineno}"
+      out.location(Kernel.caller_locations(1, 1)[0])
       return _thread_vars(out, object) if Thread === object
-      return _fiber_vars(out, object) if @fiber_supported && Fiber === object
+      return _fiber_vars(out, object) if @fiber_support && Fiber === object
       return _instance_vars(out, object) if defined?(object.instance_variables)
       out << '  !!! unable to retrieve vars'
       object
     ensure
       @trace[traced] = traced if traced
-      out.flush(@output)
+      @output << out.to_s
     end
 
     private
@@ -329,10 +328,7 @@ module ImLost
       arg
     end
 
-    def _trace_all(args)
-      args.each { |arg| @trace[arg] = arg if _can_trace?(arg) }
-      args
-    end
+    def _trace_all(args) = args.each { @trace[_1] = _1 if _can_trace?(_1) }
 
     def _trace_b(arg)
       return yield(arg) if @trace.key?(arg) || !_can_trace?(arg)
@@ -390,14 +386,11 @@ module ImLost
       object
     end
 
-    def _thread_identifier(thread)
-      "#{THREAD_STATE[thread.status] || thread.status} Thread #{
-        if defined?(thread.native_thread_id)
-          thread.native_thread_id
-        else
-          thread.__id__
-        end
-      } #{thread.name}".rstrip
+    def _thread_identifier(thr)
+      state = thr.status
+      "#{state || (state.nil? ? 'aborted' : 'terminated')} Thread #{
+        defined?(thr.native_thread_id) ? thr.native_thread_id : thr.__id__
+      } #{thr.name}".rstrip
     end
   end
 
@@ -461,7 +454,7 @@ module ImLost
 
     # @attribute [r] ids
     # @return [Array<Integer>] IDs of all registered timers
-    def ids = (@ll.keys.keep_if { _1.is_a?(Integer) })
+    def ids = (@ll.keys.keep_if { Integer === _1 })
 
     #
     # Create and register a new named or anonymous timer.
@@ -487,7 +480,7 @@ module ImLost
     #
     def delete(*id_or_names)
       id_or_names.flatten.each do |id|
-        if id.is_a?(Integer)
+        if Integer === id
           del = @ll.delete(id)
           @ll.delete(del[0]) if del
         else
@@ -508,10 +501,10 @@ module ImLost
     #   identifier or name
     #
     def [](id_or_name)
-      time = self.class.now
-      timer = @ll[id_or_name.is_a?(Integer) ? id_or_name : id_or_name.to_s]
+      now = self.class.now
+      timer = @ll[Integer === id_or_name ? id_or_name : id_or_name.to_s]
       raise(ArgumentError, "not a timer - #{id_or_name.inspect}") unless timer
-      @cb[timer[0], Kernel.caller_locations(1, 1)[0], time - timer[1]]
+      @cb[timer[0], Kernel.caller_locations(1, 1)[0], (now - timer[1]).round(4)]
       timer.__id__
     end
 
@@ -528,28 +521,19 @@ module ImLost
       nil
     end
 
-    # @!visibility private
+    private
+
     def initialize(&block)
       @cb = block
       @ll = {}
     end
   end
 
-  class Out
+  class LineStore
     def initialize(*lines) = (@lines = lines)
+    def to_s = (@lines << nil).join("\n")
     def <<(str) = @lines << str
-    def location(loc) = @lines << "  #{loc.path}:#{loc.lineno}"
-    def flush(dev) = dev << (@lines << nil).join("\n")
-
-    def sig(prefix, info, args)
-      args = args.join(', ')
-      @lines << case info.self
-      when Class, Module
-        "#{prefix} #{info.self}.#{info.method_id}(#{args})"
-      else
-        "#{prefix} #{info.defined_class}##{info.method_id}(#{args})"
-      end
-    end
+    def location(loc) = @lines << "* #{loc.path}:#{loc.lineno}"
 
     def vars(kind, names)
       return @lines << "  <no #{kind} defined>" if names.empty?
@@ -557,19 +541,101 @@ module ImLost
       names.sort!.each { @lines << "    #{_1}: #{yield(_1).inspect}" }
     end
   end
-  private_constant :Out
+  private_constant :LineStore
 
-  ARG_SIG = { rest: '*', keyrest: '**', block: '&' }.compare_by_identity.freeze
-  NO_NAME = { :* => 1, :** => 1, :& => 1 }.compare_by_identity.freeze
-  THREAD_STATE = {
-    false => 'terminated',
-    nil => 'aborted'
-  }.compare_by_identity.freeze
-  private_constant :ARG_SIG, :NO_NAME, :THREAD_STATE
+  class CCallLineStore < LineStore
+    def initialize(prefix, info, include_location)
+      @info = info
+      sig = "#{info.method_id}(#{args.join(', ')})"
+      case info.self
+      when Class, Module
+        super("#{prefix} #{info.self}.#{sig}")
+      else
+        super("#{prefix} #{info.defined_class}##{sig}")
+      end
+      return unless include_location
+      loc = location
+      path = loc.path
+      path = path[10..-2] if path.start_with?('<internal:')
+      @lines << "  #{path}:#{loc.lineno}"
+    end
 
-  @trace = {}.compare_by_identity
-  @caller_locations = @exception_locations = true
-  @output = STDERR
+    def location = @info
+
+    def args
+      argc = -1
+      @info.parameters.map do |kind, _|
+        argc += 1
+        CARG_TYPE[kind] || "arg#{argc}"
+      end
+    end
+
+    CARG_TYPE = {
+      rest: '*args',
+      keyrest: '**kwargs',
+      block: '&block'
+    }.compare_by_identity.freeze
+  end
+  private_constant :CCallLineStore
+
+  class RbCallLineStore < CCallLineStore
+    def initialize(prefix, info, include_location)
+      @ctx = info.binding
+      super
+      @ctx = nil
+    end
+
+    def location
+      locations = @ctx.eval('caller_locations(7,3)')
+      unless locations[1].path.start_with?('<internal:prelude')
+        return locations[1]
+      end
+      locations[0].path.start_with?('<internal:') ? locations[0] : locations[2]
+    end
+
+    def args
+      @info.parameters.map do |kind, name|
+        next name if ARG_SKIP.key?(name)
+        "#{ARG_TYPE[kind]}#{@ctx.local_variable_get(name).inspect}"
+      end
+    end
+
+    ARG_TYPE = { rest: :*, keyrest: :**, block: :& }.compare_by_identity.freeze
+    ARG_SKIP = ARG_TYPE.invert.compare_by_identity.freeze
+  end
+  private_constant :RbCallLineStore
+
+  @trace_calls =
+    TracePoint.new(:c_call, :call) do |tp|
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
+      klass = tp.event == :c_call ? CCallLineStore : RbCallLineStore
+      @output << klass.new('>', tp, @caller_locations).to_s
+    end
+
+  @trace_results =
+    TracePoint.new(:c_return, :return) do |tp|
+      next if !@trace.key?(tp.self) || tp.path == __FILE__
+      klass = tp.event == :c_return ? CCallLineStore : RbCallLineStore
+      out = klass.new('<', tp, @caller_locations)
+      out << "  = #{tp.return_value.inspect}"
+      @output << out.to_s
+    end
+
+  exception_support = RUBY_VERSION.to_f < 3.3 ? %i[raise] : %i[raise rescue]
+  @trace_exceptions =
+    TracePoint.new(*exception_support) do |tp|
+      ex = tp.raised_exception
+      mark, parent = tp.event == :rescue ? ['!', ex.cause] : 'x'
+      ex = ex.inspect
+      out = LineStore.new("#{mark} #{ex[0] == '#' ? ex[2..-2] : ex}")
+      while parent
+        ex = parent.inspect
+        out << "  [#{ex[0] == '#' ? ex[2..-2] : ex}]"
+        parent = parent.cause
+      end
+      out << "  #{tp.path}:#{tp.lineno}" if @exception_locations
+      @output << out.to_s
+    end
 
   @timer = TimerStore.new { |title, location, time| @output << <<~TIMER_MSG }
     T #{title}: #{time ? "#{time} sec." : 'created'}
@@ -577,76 +643,10 @@ module ImLost
   TIMER_MSG
   TimerStore.private_class_method(:new)
 
-  @trace_calls = [
-    TracePoint.new(:c_call) do |tp|
-      next if !@trace.key?(tp.self) || tp.path == __FILE__
-      out = Out.new
-      out.sig('>', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' })
-      out.location(tp) if @caller_locations
-      out.flush(@output)
-    end,
-    TracePoint.new(:call) do |tp|
-      next if !@trace.key?(tp.self) || tp.path == __FILE__
-      ctx = tp.binding
-      out = Out.new
-      out.sig(
-        '>',
-        tp,
-        tp.parameters.map do |kind, name|
-          next name if NO_NAME.key?(name)
-          "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
-        end
-      )
-      out.location(ctx.eval('caller_locations(4,1)')[0]) if @caller_locations
-      out.flush(@output)
-    end
-  ]
+  @fiber_support = !!defined?(Fiber.current.storage)
 
-  @trace_results = [
-    TracePoint.new(:c_return) do |tp|
-      next if !@trace.key?(tp.self) || tp.path == __FILE__
-      out = Out.new
-      out.sig('<', tp, tp.parameters.map { ARG_SIG[_1[0]] || '?' })
-      out.location(tp) if @caller_locations
-      out << "  = #{tp.return_value.inspect}"
-      out.flush(@output)
-    end,
-    TracePoint.new(:return) do |tp|
-      next if !@trace.key?(tp.self) || tp.path == __FILE__
-      ctx = tp.binding
-      out = Out.new
-      out.sig(
-        '<',
-        tp,
-        tp.parameters.map do |kind, name|
-          next name if NO_NAME.key?(name)
-          "#{ARG_SIG[kind]}#{ctx.local_variable_get(name).inspect}"
-        end
-      )
-      out.location(ctx.eval('caller_locations(4,1)')[0]) if @caller_locations
-      out << "  = #{tp.return_value.inspect}"
-      out.flush(@output)
-    end
-  ]
-
-  supported = RUBY_VERSION.to_f < 3.3 ? %i[raise] : %i[raise rescue]
-  @trace_exceptions =
-    TracePoint.new(*supported) do |tp|
-      ex = tp.raised_exception
-      mark, parent = tp.event == :rescue ? ['!', ex.cause] : 'x'
-      ex = ex.inspect
-      out = Out.new("#{mark} #{ex[0] == '#' ? ex[2..-2] : ex}")
-      while parent
-        ex = parent.inspect
-        out << "  [#{ex[0] == '#' ? ex[2..-2] : ex}]"
-        parent = parent.cause
-      end
-      out.location(tp) if @exception_locations
-      out.flush(@output)
-    end
-
-  @fiber_supported =
-    !!(defined?(Fiber.current) && defined?(Fiber.current.storage))
-
+  @output = STDERR
+  @trace = {}.compare_by_identity
+  @caller_locations = @exception_locations = true
   self.trace_calls = self.trace_results = true
 end
