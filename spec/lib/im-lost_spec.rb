@@ -1,12 +1,18 @@
 # frozen_string_literal: true
 
 class TestSample
-  attr_reader :foo
-  attr_accessor :bar
-
   def initialize
     @foo = 20
     @bar = 22
+  end
+
+  if RUBY_VERSION.to_f <= 3.0
+    # there is a bug in Ruby 3.0 which does not allow to trace
+    # methods declared with attr_xxx
+    def foo = @foo
+    def bar = @bar
+  else
+    attr_reader :foo, :bar
   end
 
   def add(arg0, arg1) = arg0 + arg1
@@ -119,8 +125,8 @@ RSpec.describe ImLost do
     it 'can include caller locations' do
       ImLost.caller_locations = true
 
-      expect { sample.foo }.to write <<~OUTPUT
-        > TestSample#foo()
+      expect { sample.add(1, 1) }.to write <<~OUTPUT
+        > TestSample#add(1, 1)
           #{__FILE__}:#{__LINE__ - 2}
       OUTPUT
     end
@@ -386,7 +392,9 @@ RSpec.describe ImLost do
       it 'prints local variables' do
         expect do
           test = :foo_bar_baz
-          sample = test.to_s
+          sample = test
+          sample = sample.to_s
+
           ImLost.vars(binding)
         end.to write <<~OUTPUT
           * #{__FILE__}:#{__LINE__ - 2}
