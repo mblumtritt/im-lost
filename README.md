@@ -10,7 +10,7 @@ ImLost helps you by analyzing function calls of objects, informing you about exc
 
 ## Description
 
-If you like to undertsand method call details you get a call trace with `ImLost.trace`:
+If you like to understand method call details you get a call trace with `ImLost.trace`:
 
 ```ruby
 File.open('test.txt', 'w') do |file|
