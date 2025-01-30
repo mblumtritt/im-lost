@@ -80,7 +80,7 @@ RSpec.describe ImLost do
 
     it 'includes keyword splat arguments' do
       expect { sample.insp(a: 1, b: 2) }.to write(
-        "> TestSample#insp(**{:a=>1, :b=>2})\n"
+        "> TestSample#insp(**#{{ a: 1, b: 2 }.inspect})\n"
       )
     end
 
@@ -179,8 +179,8 @@ RSpec.describe ImLost do
 
     it 'includes keyword splat arguments' do
       expect { sample.insp(a: 1, b: 2) }.to write <<~OUTPUT
-        < TestSample#insp(**{:a=>1, :b=>2})
-          = "{:a=>1, :b=>2}"
+        < TestSample#insp(**#{{ a: 1, b: 2 }.inspect})
+          = "#{{ a: 1, b: 2 }.inspect}"
       OUTPUT
     end
 
@@ -444,7 +444,7 @@ RSpec.describe ImLost do
       end
     end
 
-    if defined?(Fiber.current) && defined?(Fiber.current.storage)
+    if defined?(Fiber.current.storage)
       context 'when the current Fiber is given' do
         before do
           Fiber[:var1] = 22
