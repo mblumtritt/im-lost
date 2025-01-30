@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-$stdout.sync = $stderr.sync = $VERBOSE = true
+$stdout.sync = $stderr.sync = $VERBOSE = Warning[:deprecated] = true
 
 RSpec.configure(&:disable_monkey_patching!)
 
