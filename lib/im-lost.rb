@@ -84,7 +84,7 @@ module ImLost
     end
 
     #
-    # Traces execptions raised within a given block.
+    # Traces exceptions raised within a given block.
     #
     # @example Trace exception and rescue handling
     #   ImLost.trace_exceptions do
@@ -101,7 +101,7 @@ module ImLost
     #   #   x RuntimeError: something went wrong!
     #   #     /examples/test.rb:4
     #
-    # @param with_locations [Boolean] wheter the locations should be included
+    # @param with_locations [Boolean] whether the locations should be included
     #   into the exception trace information
     # @yieldreturn [Object] return result
     #
@@ -118,7 +118,7 @@ module ImLost
     end
 
     #
-    # Enables/disables tracing of returned valuess of method calls.
+    # Enables/disables tracing of returned values of method calls.
     # This is enabled by default.
     #
     # @attribute [r] trace_results
@@ -259,7 +259,7 @@ module ImLost
     #
     # Inspect internal variables of a given object.
     #
-    # @note The dedictaed handling of `Fiber` is platform dependend!
+    # @note The dedicated handling of `Fiber` is platform dependent!
     #
     # @example Inspect current instance variables
     #   @a = 22
@@ -449,7 +449,7 @@ module ImLost
     def count = ids.size
 
     # @attribute [r] empty?
-    # @return [Boolean] wheter the timer store is empty or not
+    # @return [Boolean] whether the timer store is empty or not
     def empty? = ids.empty?
 
     # @attribute [r] ids
