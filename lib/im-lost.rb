@@ -54,7 +54,7 @@ module ImLost
       return @output = value if defined?(value.<<)
       raise(
         NoMethodError,
-        "undefined method '<<' for an instance of #{
+        "undefined method '#<<' for an instance of #{
           Kernel.instance_method(:class).bind(value).call
         }"
       )
