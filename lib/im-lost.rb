@@ -107,14 +107,16 @@ module ImLost
     #
     def trace_exceptions(with_locations: true)
       return unless block_given?
-      we = @trace_exceptions.enabled?
-      el = @exception_locations
-      @exception_locations = with_locations
-      @trace_exceptions.enable unless we
-      yield
-    ensure
-      @trace_exceptions.disable unless we
-      @exception_locations = el
+      begin
+        we = @trace_exceptions.enabled?
+        el = @exception_locations
+        @exception_locations = with_locations
+        @trace_exceptions.enable unless we
+        yield
+      ensure
+        @trace_exceptions.disable unless we
+        @exception_locations = el
+      end
     end
 
     #
