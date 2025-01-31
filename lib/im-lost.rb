@@ -498,6 +498,16 @@ module ImLost
     end
 
     #
+    # Delete and unregister all timers.
+    #
+    # @return [self] itself
+    #
+    def clear
+      @ll = {}
+      self
+    end
+
+    #
     # Print the ID or name and the runtime since a timer was created.
     # It includes the location.
     #
@@ -531,7 +541,7 @@ module ImLost
 
     def initialize(&block)
       @cb = block
-      @ll = {}
+      clear
     end
   end
 
