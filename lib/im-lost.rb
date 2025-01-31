@@ -456,7 +456,11 @@ module ImLost
 
     # @attribute [r] ids
     # @return [Array<Integer>] IDs of all registered timers
-    def ids = (@ll.keys.keep_if { Integer === _1 })
+    def ids = @ll.keys.keep_if { Integer === _1 }
+
+    # @attribute [r] names
+    # @return [Array<String>] names of all registered named timers
+    def names = @ll.keys.delete_if { Integer === _1 }
 
     #
     # Create and register a new named or anonymous timer.
