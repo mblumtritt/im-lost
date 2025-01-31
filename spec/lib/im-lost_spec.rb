@@ -489,20 +489,28 @@ RSpec.describe ImLost do
 
   context '.timer' do
     let(:output) { ImLost.output.string }
-    let(:reset_output!) { ImLost.output = StringIO.new }
 
-    before { ImLost.output = StringIO.new }
-    after { ImLost.timer.delete(ImLost.timer.ids) }
+    def reset_output! = (ImLost.output = StringIO.new)
 
-    it 'supports attributes #count, #empty?, #ids' do
-      expect(ImLost.timer).to have_attributes(count: 0, empty?: true, ids: [])
+    before { reset_output! }
+    after { ImLost.timer.clear }
+
+    it 'supports attributes #count, #empty?, #ids, #names' do
+      expect(ImLost.timer).to have_attributes(
+        count: 0,
+        empty?: true,
+        ids: [],
+        names: []
+      )
 
       ids = 5.times.map { ImLost.timer.create }
+      ids += 3.times.map { ImLost.timer.create("timer-#{_1}") }
 
       expect(ImLost.timer).to have_attributes(
         count: ids.size,
         empty?: false,
-        ids: ids
+        ids: ids,
+        names: %w[timer-0 timer-1 timer-2]
       )
     end
 
@@ -513,9 +521,9 @@ RSpec.describe ImLost do
     end
 
     it 'prints information when a named timer is created' do
-      ImLost.timer.create(:tt1)
+      ImLost.timer.create(:my_tmr)
 
-      expect(output).to eq "T tt1: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
+      expect(output).to eq "T my_tmr: created\n  #{__FILE__}:#{__LINE__ - 2}\n"
     end
 
     it 'prints runtime information for an anonymous timer' do

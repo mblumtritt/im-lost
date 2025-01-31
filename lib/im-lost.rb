@@ -316,7 +316,7 @@ module ImLost
       object
     ensure
       @trace[traced] = traced if traced
-      @output << out.to_s
+      @output << out
     end
 
     private
@@ -382,8 +382,8 @@ module ImLost
     end
 
     def _instance_vars(out, object)
-      out.vars('instance variables', object.instance_variables) do |n|
-        object.instance_variable_get(n)
+      out.vars('instance variables', object.instance_variables) do |name|
+        object.instance_variable_get(name)
       end
       object
     end
@@ -659,10 +659,9 @@ module ImLost
   TIMER_MSG
   TimerStore.private_class_method(:new)
 
-  @fiber_support = !!defined?(Fiber.current.storage)
-
+  untrace_all!
   @output = STDERR
-  @trace = {}.compare_by_identity
+  @fiber_support = !!defined?(Fiber.current.storage)
   @caller_locations = @exception_locations = true
   self.trace_calls = self.trace_results = true
 end
