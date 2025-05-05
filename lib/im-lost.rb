@@ -54,7 +54,7 @@ module ImLost
       return @output = value if defined?(value.<<)
       raise(
         NoMethodError,
-        "undefined method '<<' for an instance of #{
+        "undefined method '#<<' for an instance of #{
           Kernel.instance_method(:class).bind(value).call
         }"
       )
@@ -107,14 +107,16 @@ module ImLost
     #
     def trace_exceptions(with_locations: true)
       return unless block_given?
-      we = @trace_exceptions.enabled?
-      el = @exception_locations
-      @exception_locations = with_locations
-      @trace_exceptions.enable unless we
-      yield
-    ensure
-      @trace_exceptions.disable unless we
-      @exception_locations = el
+      begin
+        we = @trace_exceptions.enabled?
+        el = @exception_locations
+        @exception_locations = with_locations
+        @trace_exceptions.enable unless we
+        yield
+      ensure
+        @trace_exceptions.disable unless we
+        @exception_locations = el
+      end
     end
 
     #
@@ -314,7 +316,7 @@ module ImLost
       object
     ensure
       @trace[traced] = traced if traced
-      @output << out.to_s
+      @output << out
     end
 
     private
@@ -380,8 +382,8 @@ module ImLost
     end
 
     def _instance_vars(out, object)
-      out.vars('instance variables', object.instance_variables) do |n|
-        object.instance_variable_get(n)
+      out.vars('instance variables', object.instance_variables) do |name|
+        object.instance_variable_get(name)
       end
       object
     end
@@ -454,7 +456,11 @@ module ImLost
 
     # @attribute [r] ids
     # @return [Array<Integer>] IDs of all registered timers
-    def ids = (@ll.keys.keep_if { Integer === _1 })
+    def ids = @ll.keys.keep_if { Integer === _1 }
+
+    # @attribute [r] names
+    # @return [Array<String>] names of all registered named timers
+    def names = @ll.keys.delete_if { Integer === _1 }
 
     #
     # Create and register a new named or anonymous timer.
@@ -492,6 +498,16 @@ module ImLost
     end
 
     #
+    # Delete and unregister all timers.
+    #
+    # @return [self] itself
+    #
+    def clear
+      @ll = {}
+      self
+    end
+
+    #
     # Print the ID or name and the runtime since a timer was created.
     # It includes the location.
     #
@@ -525,7 +541,7 @@ module ImLost
 
     def initialize(&block)
       @cb = block
-      @ll = {}
+      clear
     end
   end
 
@@ -643,10 +659,9 @@ module ImLost
   TIMER_MSG
   TimerStore.private_class_method(:new)
 
-  @fiber_support = !!defined?(Fiber.current.storage)
-
+  untrace_all!
   @output = STDERR
-  @trace = {}.compare_by_identity
+  @fiber_support = !!defined?(Fiber.current.storage)
   @caller_locations = @exception_locations = true
   self.trace_calls = self.trace_results = true
 end
