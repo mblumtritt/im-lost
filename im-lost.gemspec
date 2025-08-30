@@ -19,11 +19,11 @@ Gem::Specification.new do |spec|
 
   spec.author = 'Mike Blumtritt'
   spec.license = 'MIT'
-  spec.homepage = 'https://github.com/mblumtritt/im-lost'
+  spec.homepage = 'https://codeberg.org/mblumtritt/im-lost'
+  spec.metadata['rubygems_mfa_required'] = 'true'
   spec.metadata['source_code_uri'] = spec.homepage
   spec.metadata['bug_tracker_uri'] = "#{spec.homepage}/issues"
   spec.metadata['documentation_uri'] = 'https://rubydoc.info/gems/im-lost'
-  spec.metadata['rubygems_mfa_required'] = 'true'
 
   spec.required_ruby_version = '>= 3.0'
 

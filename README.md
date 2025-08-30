@@ -5,8 +5,8 @@ If you have overlooked something again and don't really understand what your cod
 ImLost helps you by analyzing function calls of objects, informing you about exceptions and logging your way through your code. In short, ImLost is your debugging helper!
 
 - Gem: [rubygems.org](https://rubygems.org/gems/im-lost)
-- Source: [github.com](https://github.com/mblumtritt/im-lost)
-- Help: [rubydoc.info](https://rubydoc.info/gems/im-lost/ImLost)
+- Source: [codeberg.org](https://codeberg.org/mblumtritt/im-lost)
+- Help: [rubydoc.info](https://rubydoc.info/gems/im-lost)
 
 ## Description
 
