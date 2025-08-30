@@ -1,3 +1,7 @@
+> [!IMPORTANT]  
+> I archived this repo here and moved it to [Codeberg](https://codeberg.org/mblumtritt/im-lost) for several reasons.
+> <br/><br/>🛠️ It's still active there!
+
 # ImLost ![version](https://img.shields.io/gem/v/im-lost?label=)
 
 If you have overlooked something again and don't really understand what your code is doing. If you have to maintain this application but can't really find your way around and certainly can't track down that stupid error. If you feel lost in all that code, here's the gem to help you out!
